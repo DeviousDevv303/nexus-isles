@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import {
   CONTINUITY_MIN_TICKS,
-  continuityHeirs,
+  continuityMembersByBirthAge,
+  continuitySuccessors,
   deriveEntities,
   isExtinct,
   lineagePopulation,
@@ -176,11 +177,11 @@ describe("AA12 blend rule — end to end", () => {
     }
     const e = deriveEntities(w.entries());
     const t = w.tickNumber;
-    expect(continuityHeirs(e, "lineage:alpha", t)).toEqual([]);
-    expect(continuityHeirs(e, "lineage:bravo", t)).toEqual([]);
-    expect(continuityHeirs(e, "lineage:res-1", t)).toEqual([]); // founder is not its own heir
-    expect(continuityHeirs(e, "lineage:charlie", t)).toEqual(["res-2"]);
-    expect(continuityHeirs(e, "lineage:charlie", e.residents["res-2"].bornTick + 9)).toEqual([]); // < 10 ticks
+    expect(continuityMembersByBirthAge(e, "lineage:alpha", t)).toEqual([]);
+    expect(continuityMembersByBirthAge(e, "lineage:bravo", t)).toEqual([]);
+    expect(continuityMembersByBirthAge(e, "lineage:res-1", t)).toEqual([]); // founder is not its own heir
+    expect(continuityMembersByBirthAge(e, "lineage:charlie", t)).toEqual(["res-2"]);
+    expect(continuityMembersByBirthAge(e, "lineage:charlie", e.residents["res-2"].bornTick + 9)).toEqual([]); // < 10 ticks
   });
 
   it("one-sided blend: no consent, no child, no cost", () => {
@@ -321,8 +322,38 @@ describe("AA12 dynasty, family — succession integrity", () => {
     expect(validateGenome(standardGenesisGenome())).toEqual([]);
   });
 
-  it("the heir threshold is the constitution's 10 ticks (AA1 c), exposed as a named constant", () => {
+  it("the 10-tick threshold is the constitution's (AA1 c), exposed as a named constant", () => {
     expect(CONTINUITY_MIN_TICKS).toBe(10);
+  });
+
+  it("the two continuity readings differ, and neither counts a blended child for a parent", () => {
+    // res-1 is alpha's fork child, born tick 2. No succession has happened.
+    const base = forked().entries();
+    const noSuccession = deriveEntities(base);
+    expect(continuityMembersByBirthAge(noSuccession, "lineage:alpha", 12)).toEqual(["res-1"]); // age 10
+    expect(continuitySuccessors(noSuccession, "lineage:alpha", 12)).toEqual([]); // never succeeded anyone
+
+    // alpha dies at tick 20 and res-1 succeeds: the clock starts THERE, not at birth.
+    const e = deriveEntities(dieAndSucceed(base, "alpha", "res-1", 20));
+    expect(continuitySuccessors(e, "lineage:alpha", 29)).toEqual([]); // 9 ticks after succession
+    expect(continuitySuccessors(e, "lineage:alpha", 30)).toEqual(["res-1"]); // 10 ticks after
+    expect(continuityMembersByBirthAge(e, "lineage:alpha", 29)).toEqual(["res-1"]); // already counted by age
+
+    // out-of-lineage successor never counts for the deceased's lineage
+    const out = deriveEntities(dieAndSucceed(base, "alpha", "bravo", 20));
+    expect(continuitySuccessors(out, "lineage:alpha", 40)).toEqual([]);
+    expect(continuitySuccessors(out, "lineage:bravo", 40)).toEqual([]);
+
+    // blended child succeeding a parent counts toward NEITHER parent under either reading
+    const b = deriveEntities(dieAndSucceed(blendedWorld().entries(), "alpha", "res-1", 20));
+    for (const line of ["lineage:alpha", "lineage:bravo"]) {
+      expect(continuitySuccessors(b, line, 40)).toEqual([]);
+      expect(continuityMembersByBirthAge(b, line, 40)).toEqual([]);
+    }
+    // a dead successor stops counting
+    const dead = deriveEntities(fake(dieAndSucceed(base, "alpha", "res-1", 20), "DEATH", 35, { resident: "res-1" }));
+    expect(continuitySuccessors(dead, "lineage:alpha", 34)).toEqual(["res-1"]);
+    expect(continuitySuccessors(dead, "lineage:alpha", 35)).toEqual([]);
   });
 
   it("an invalid genesis genome is refused at world creation", () => {
