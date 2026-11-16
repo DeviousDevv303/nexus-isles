@@ -21,10 +21,14 @@
 // SUCCESSION_EXECUTED entry is accepted only if, from the journal alone:
 // both parties are known residents and distinct; the deceased has a DEATH
 // at the same tick, journaled before it; the successor is alive at that
-// point; and no succession was already accepted for that deceased. Anything
+// point; no succession was already accepted for that deceased; AND the
+// record names the instrument that the deceased had authorized while alive
+// (a journaled SUCCESSION_AUTHORIZED, not revoked, naming this successor).
+// A correctly shaped record with no such instrument is rejected. Anything
 // else lands in `rejectedSuccessions` with a reason and creates no dynasty
-// and no family link. This is a structural floor, not the AA4 instrument
-// check — that belongs to the world core, which must be the only emitter.
+// and no family link. The world core's reducer enforces the same conditions
+// plus execution-time ones (expiry, estate); this derivation does not rely
+// on that and re-checks from the journal.
 //
 // PROVISIONAL readings, pending the owner (the constitution's definitions
 // are one line each):
@@ -75,7 +79,8 @@ export interface RejectedSuccession {
     | "self_succession"
     | "deceased_not_dead_at_tick"
     | "successor_not_alive"
-    | "duplicate_for_deceased";
+    | "duplicate_for_deceased"
+    | "no_matching_instrument";
 }
 
 /** AA1 (c) / Annex B 4: own-agency survival ticks before a successor counts. */
@@ -86,6 +91,8 @@ export interface SuccessionRecord {
   deceased: string;
   successor: string;
   journalIndex: number;
+  /** The authorized instrument this execution corresponds to. */
+  instrumentId: string;
 }
 
 export interface CivilizationRecord {
@@ -123,6 +130,8 @@ export function deriveEntities(entries: readonly JournalEntry[]): Entities {
   const rejectedSuccessions: RejectedSuccession[] = [];
   const familyOf: Record<string, string> = {};
   const movedBySuccession = new Set<string>();
+  /** founder -> the instrument they have in force, from the journal alone. */
+  const inForce = new Map<string, { id: string; successorId: string }>();
 
   const found = (id: string, founder: string, hash: string | null, tick: number, ancestry: string[]) => {
     if (lineages[id]) throw new Error(`lineage ${id} founded twice`);
@@ -158,6 +167,21 @@ export function deriveEntities(entries: readonly JournalEntry[]): Entities {
       r.diedTick = e.tick;
       const line = lineages[r.lineage];
       if (line.members.every((m) => residents[m].diedTick !== null)) line.extinctTick = e.tick;
+    } else if (e.type === "SUCCESSION_AUTHORIZED") {
+      const inst = p.instrument as { id?: unknown; founderId?: unknown; successorId?: unknown } | undefined;
+      const founder = inst?.founderId;
+      // Only a living, known founder can have authorized anything.
+      if (
+        typeof inst?.id === "string" && typeof founder === "string" && typeof inst.successorId === "string" &&
+        residents[founder] && residents[founder].diedTick === null
+      ) {
+        inForce.set(founder, { id: inst.id, successorId: inst.successorId });
+      }
+    } else if (e.type === "SUCCESSION_REVOKED") {
+      const r = p.resident;
+      if (typeof r === "string" && inForce.get(r)?.id === p.instrumentId) inForce.delete(r);
+    } else if (e.type === "SUCCESSION_FAILED") {
+      if (typeof p.deceased === "string") inForce.delete(p.deceased); // spent
     } else if (e.type === "SUCCESSION_EXECUTED") {
       const reject = (reason: RejectedSuccession["reason"]) =>
         rejectedSuccessions.push({ journalIndex: e.index, reason });
@@ -175,8 +199,17 @@ export function deriveEntities(entries: readonly JournalEntry[]): Entities {
         reject("successor_not_alive");
       } else if (successions.some((s) => s.deceased === deceased)) {
         reject("duplicate_for_deceased");
+      } else if (
+        // Correct shape is not enough: the record must correspond to the
+        // instrument this resident had in force, naming this successor.
+        typeof p.instrumentId !== "string" ||
+        inForce.get(deceased)?.id !== p.instrumentId ||
+        inForce.get(deceased)?.successorId !== successor
+      ) {
+        reject("no_matching_instrument");
       } else {
-        successions.push({ tick: e.tick, deceased, successor, journalIndex: e.index });
+        inForce.delete(deceased); // an instrument executes at most once
+        successions.push({ tick: e.tick, deceased, successor, journalIndex: e.index, instrumentId: p.instrumentId });
         if (!movedBySuccession.has(successor)) {
           movedBySuccession.add(successor);
           // The successor and anyone already in the family they headed move
