@@ -25,6 +25,7 @@ function nexusSpec(overrides: Partial<SeatSpec> = {}): SeatSpec {
     seatId: "nexus",
     tier: 0,
     providerId: "nexus-intelligence",
+    backendVersion: "run25",
     budget: { tokensPerTick: 4096, actionsPerTick: 2 },
     ...overrides,
   };

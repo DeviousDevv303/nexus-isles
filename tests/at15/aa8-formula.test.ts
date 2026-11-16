@@ -10,7 +10,7 @@ import {
   type Claim,
 } from "../../engine/world/contention.js";
 import { World } from "../../engine/world/world.js";
-import { SEATS, baseConfig, rebuildJournal } from "../helpers/worldFixtures.js";
+import { SEATS, TEST_BACKEND, baseConfig, rebuildJournal } from "../helpers/worldFixtures.js";
 
 function contestedConfig(opts: { initiative?: Record<string, number>; amount?: number } = {}) {
   const cfg = baseConfig();
@@ -122,7 +122,7 @@ describe("AT-15 / AA8 contention-v1", () => {
     const N = 400;
     for (let seed = 1; seed <= N; seed++) {
       const cfg = contestedConfig();
-      cfg.residents = seats.map((id) => ({ id, satiety: 8, maxSatiety: 10, actionsPerTick: 2, initiative: 0 }));
+      cfg.residents = seats.map((id) => ({ id, satiety: 8, maxSatiety: 10, actionsPerTick: 2, initiative: 0, backend: TEST_BACKEND }));
       const w = World.create(seed, cfg);
       for (const seat of seats) w.submit(seat, { verb: "gather", args: { node: "grove", amount: 4 } });
       w.tick();
