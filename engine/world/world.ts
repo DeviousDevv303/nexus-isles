@@ -18,9 +18,11 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { Journal, type JournalEntry } from "../../ledger/journal.js";
 import type { Action, Observation } from "../../seats/seatProvider.js";
 import { resolveContention, type Claim, type ClaimOutcome } from "./contention.js";
+import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
+  lineageIdFor,
   normalizeConfig,
   reduce,
   validateConfig,
@@ -372,6 +374,7 @@ export class World {
         });
       }
     }
+    this.applyReproduction(accepted);
     for (const r of accepted) {
       if (r.action.verb !== "eat") continue;
       const res = this.st.residents[r.seatId];
@@ -381,6 +384,65 @@ export class World {
         res.maxSatiety - res.satiety,
       );
       this.emit("EAT_APPLIED", r.seatId, { resident: r.seatId, seq: r.seq, consumed });
+    }
+  }
+
+  /**
+   * AA12 reproduction. Fork: one parent, child joins the parent's lineage.
+   * Blend: mutual consent in the same tick (each names the other), both
+   * pay, and the child FOUNDS A NEW LINEAGE with dual ancestry recorded.
+   * Child ids are engine-assigned, so there is no id contention.
+   */
+  private applyReproduction(accepted: Received[]): void {
+    const cost = this.st.rules.reproductionCost;
+    const fail = (r: Received, reason: string): void =>
+      this.emit("REPRODUCTION_FAILED", r.seatId, {
+        resident: r.seatId, seq: r.seq, verb: r.action.verb, reason,
+      });
+    const born = (mode: "fork" | "blend", parentIds: string[], r: Received): void => {
+      const ps = parentIds.map((id) => this.st.residents[id]);
+      if (ps.some((p) => !p.alive || p.inventory < cost)) return fail(r, "insufficient_resources");
+      const id = `res-${this.st.nextResidentSeq}`;
+      const seed = rngFor(this.st.seed, this.st.tick, `repro:${parentIds.join("+")}:${r.seq}`).uint32();
+      const { child, record } =
+        mode === "fork"
+          ? mutateFork(ps[0].genome!, seed)
+          : mutateBlend(ps[0].genome!, ps[1].genome!, seed);
+      const maxSatiety = Math.min(...ps.map((p) => p.maxSatiety));
+      this.emit("RESIDENT_BORN", "engine", {
+        resident: id,
+        mode,
+        parents: parentIds,
+        lineage: mode === "fork" ? ps[0].lineage : lineageIdFor(id),
+        // Dual ancestry (blend) / single (fork): the parents' lineages, as record.
+        ancestry: ps.map((p) => p.lineage),
+        costPerParent: cost,
+        satiety: Math.min(cost * ps.length, maxSatiety),
+        maxSatiety,
+        actionsPerTick: Math.min(...ps.map((p) => p.actionsPerTick)),
+        initiative: Math.floor(ps.reduce((a, p) => a + p.initiative, 0) / ps.length),
+        genome: child,
+        mutation: record,
+      });
+    };
+    for (const r of accepted) {
+      if (r.action.verb === "fork") born("fork", [r.seatId], r);
+    }
+    const blends = accepted.filter((r) => r.action.verb === "blend");
+    const used = new Set<Received>();
+    for (const r of blends) {
+      if (used.has(r)) continue;
+      used.add(r);
+      const partner = r.action.args.partner as string;
+      const match = blends.find(
+        (o) => !used.has(o) && o.seatId === partner && o.action.args.partner === r.seatId,
+      );
+      if (!match) {
+        fail(r, "no_mutual_consent");
+        continue;
+      }
+      used.add(match);
+      born("blend", [r.seatId, partner].sort(), r);
     }
   }
 

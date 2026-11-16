@@ -152,9 +152,20 @@ export function isNumericField(genome: Genome, path: string): boolean {
   return typeof getField(genome, path) === "number";
 }
 
+/** Erratum E1: the schema guarantees N >= 4 eligible mutable fields. */
+export const MIN_ELIGIBLE_FIELDS = 4;
+
+export function eligibleCountIssue(n: number): string | null {
+  return n < MIN_ELIGIBLE_FIELDS
+    ? `genome has ${n} eligible mutable fields; the schema requires N >= ${MIN_ELIGIBLE_FIELDS}`
+    : null;
+}
+
 /** Validate a genome against the spec: shape, bounds, categorical sets. */
 export function validateGenome(genome: Genome): string[] {
   const issues: string[] = [];
+  const countIssue = eligibleCountIssue(mutableFieldPaths(genome).length);
+  if (countIssue) issues.push(countIssue);
   if (genome.specVersion !== GENOME_SPEC_VERSION) {
     issues.push(`specVersion must be ${GENOME_SPEC_VERSION}`);
   }

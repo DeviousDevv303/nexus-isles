@@ -7,7 +7,7 @@
 import type { Action } from "../../seats/seatProvider.js";
 import type { WorldState } from "./state.js";
 
-export const VERBS = ["gather", "eat", "wait"] as const;
+export const VERBS = ["gather", "eat", "wait", "fork", "blend"] as const;
 
 export type ValidationResult = { ok: true } | { ok: false; reason: string };
 
@@ -61,6 +61,22 @@ export function validateAction(
         return { ok: false, reason: "invalid_amount" };
       }
       if (resident.inventory < 1) return { ok: false, reason: "nothing_to_eat" };
+      return { ok: true };
+    }
+    case "fork":
+    case "blend": {
+      // AA12: reproduction is a costly resident action — never free.
+      if (!resident.genome) return { ok: false, reason: "no_genome" };
+      if (action.verb === "blend") {
+        const partnerId = action.args.partner;
+        const partner = typeof partnerId === "string" ? state.residents[partnerId] : undefined;
+        if (!partner || !partner.alive || partnerId === seatId || !partner.genome) {
+          return { ok: false, reason: "invalid_partner" };
+        }
+      }
+      if (resident.inventory < state.rules.reproductionCost) {
+        return { ok: false, reason: "insufficient_resources" };
+      }
       return { ok: true };
     }
     default:
