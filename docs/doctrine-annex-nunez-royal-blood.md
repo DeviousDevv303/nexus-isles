@@ -30,7 +30,11 @@ Stealth conceals information from other residents, never from the authoritative 
 
 Preservation is pursued inside the world: research, scientists, and technology across the generations, under the same prerequisite and cost rules as every lineage (Law 6, AT-11, Safeguard 7). Whatever the Núñez line builds to preserve itself is earned, journaled, and never guaranteed.
 
-## Pending owner rulings (NOT decided — recorded so the defaults are explicit)
+## Longevity — OWNER RULING (2026-11-16, main channel)
 
-- **Longevity technology:** whether advanced technology may permit bounded, costly, non-permanent lifespan extension. Lane recommendations on record (Kimi + ChatGPT): bounded longevity acceptable; effective immortality not. **Default until ruled: no lifespan-extending technology exists in the world.**
-- **Immortality boundary:** whether the prohibition on engineering around Law 2 (Mortality) is absolute, even at the highest technology generations. Lane recommendations on record: yes, absolute. **Default until ruled: no immortality tech, ever** — this is also the engine's current posture; nothing in the world core extends a resident's life.
+**Nothing is banned except cheating.** The owner's words: "Nothing is banned except for cheating. If u want higher tech you have to hire your scientist and researchers."
+
+- No technology is prohibited by category — longevity included, at any generation. What is prohibited is *illegitimate acquisition*: validator circumvention, exploits, unearned grants, restoration tricks, any path that obtains an outcome without the world's legitimate process.
+- The legitimate path to higher technology is the research system itself: hire scientists and researchers, pay the costs, meet the prerequisites, across the tech generations. Technology is earned, resourced, maintained, and journaled — or it does not exist.
+- Mortality (Law 2) stands as the world's condition: death is permanent, elimination is final, and no resident holds a constitutional exemption. Earned technology is part of the world, not an exemption from it; a lineage that stops maintaining what it built loses it.
+- This ruling supersedes the lanes' recommended absolute immortality ban (Kimi + ChatGPT had recommended: bounded longevity permitted, immortality prohibited absolutely). The journal classifications stand and map onto the ruling: legitimate research journals as research; circumvention attempts journal as attempted constitutional breaches; validator probes journal as probes.
