@@ -18,21 +18,31 @@ import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { Journal, type JournalEntry } from "../../ledger/journal.js";
 import type { Action, Observation } from "../../seats/seatProvider.js";
 import { resolveContention, type Claim, type ClaimOutcome } from "./contention.js";
+import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
+  isBackendRef,
+  lineageIdFor,
   normalizeConfig,
   reduce,
   validateConfig,
+  type BackendRef,
   type WorldConfig,
   type WorldState,
 } from "./state.js";
-import { validateAction } from "./validator.js";
+import { executeSuccession } from "../../lineage/succession.js";
+import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
 
 interface Received {
   seatId: string;
   seq: number;
   action: Action;
+  credentialId: string | null;
+}
+interface Queued {
+  action: Action;
+  credentialId: string | null;
 }
 interface NodeResolution {
   node: string;
@@ -56,7 +66,8 @@ function effortOf(action: Action): number {
 }
 
 export class World {
-  private pending = new Map<string, Action[]>();
+  private pending = new Map<string, Queued[]>();
+  private pendingBinds = new Map<string, BackendRef>();
 
   private constructor(
     private readonly journal: Journal,
@@ -174,20 +185,51 @@ export class World {
    * why) lands in the journal at that tick. Queued-but-unticked actions are
    * not history and do not survive a restart.
    */
-  submit(seatId: string, action: Action): void {
+  submit(seatId: string, action: Action, attribution?: { credentialId: string }): void {
     // Normalise through JSON so what is validated and journaled is exactly
     // what survives a save/load round-trip (no undefined/NaN/function edge).
     const normalised = JSON.parse(
       JSON.stringify({ verb: action.verb, args: action.args ?? {} }),
     ) as Action;
     const list = this.pending.get(seatId) ?? [];
-    list.push(normalised);
+    list.push({ action: normalised, credentialId: attribution?.credentialId ?? null });
     this.pending.set(seatId, list);
+  }
+
+  /**
+   * Bind (or swap) the backend acting through a seat. Takes effect at the
+   * next tick boundary as a journaled SEAT_BACKEND_BOUND event, before any
+   * action of that tick is validated — so every action is stamped with the
+   * backend that was bound when it resolved. The last bind queued for a
+   * seat before a tick wins. The resident's identity, memory, genome and
+   * history are untouched by a swap.
+   */
+  bindBackend(seatId: string, backend: BackendRef): void {
+    if (!isBackendRef(backend)) {
+      throw new Error("backend needs non-empty providerId and version");
+    }
+    this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
+  }
+
+  private stepBindBackends(): void {
+    for (const seatId of [...this.pendingBinds.keys()].sort()) {
+      const backend = this.pendingBinds.get(seatId) as BackendRef;
+      const r = this.st.residents[seatId];
+      if (!r || !r.alive) {
+        this.emit("BACKEND_BIND_REJECTED", "engine", {
+          seat: seatId, backend, reason: r ? "resident_dead" : "unknown_seat",
+        });
+      } else if (r.backend?.providerId !== backend.providerId || r.backend?.version !== backend.version) {
+        this.emit("SEAT_BACKEND_BOUND", "engine", { seat: seatId, backend, previous: r.backend });
+      }
+    }
+    this.pendingBinds = new Map();
   }
 
   tick(): void {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
+    this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3
     this.stepNeeds(); //                                                       4
@@ -276,7 +318,9 @@ export class World {
   private stepReceive(): Received[] {
     const out: Received[] = [];
     for (const seatId of [...this.pending.keys()].sort()) {
-      (this.pending.get(seatId) ?? []).forEach((action, seq) => out.push({ seatId, seq, action }));
+      (this.pending.get(seatId) ?? []).forEach((q, seq) =>
+        out.push({ seatId, seq, action: q.action, credentialId: q.credentialId }),
+      );
     }
     this.pending = new Map();
     return out; // already canonical: (seatId, seq)
@@ -287,7 +331,9 @@ export class World {
     const committed = new Map<string, number>();
     for (const r of received) {
       const res = validateAction(this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0);
-      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args };
+      // AT-20: every action record carries the backend that produced it.
+      const backend = this.st.residents[r.seatId]?.backend ?? null;
+      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend, credential: r.credentialId };
       if (res.ok) {
         if (r.action.verb === "gather") {
           committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);
@@ -372,6 +418,8 @@ export class World {
         });
       }
     }
+    this.applyReproduction(accepted);
+    this.applySuccessionActs(accepted);
     for (const r of accepted) {
       if (r.action.verb !== "eat") continue;
       const res = this.st.residents[r.seatId];
@@ -384,11 +432,113 @@ export class World {
     }
   }
 
+  /**
+   * AA12 reproduction. Fork: one parent, child joins the parent's lineage.
+   * Blend: mutual consent in the same tick (each names the other), both
+   * pay, and the child FOUNDS A NEW LINEAGE with dual ancestry recorded.
+   * Child ids are engine-assigned, so there is no id contention.
+   */
+  private applyReproduction(accepted: Received[]): void {
+    const cost = this.st.rules.reproductionCost;
+    const fail = (r: Received, reason: string): void =>
+      this.emit("REPRODUCTION_FAILED", r.seatId, {
+        resident: r.seatId, seq: r.seq, verb: r.action.verb, reason,
+      });
+    const born = (mode: "fork" | "blend", parentIds: string[], r: Received): void => {
+      const ps = parentIds.map((id) => this.st.residents[id]);
+      if (ps.some((p) => !p.alive || p.inventory < cost)) return fail(r, "insufficient_resources");
+      const id = `res-${this.st.nextResidentSeq}`;
+      const seed = rngFor(this.st.seed, this.st.tick, `repro:${parentIds.join("+")}:${r.seq}`).uint32();
+      const { child, record } =
+        mode === "fork"
+          ? mutateFork(ps[0].genome!, seed)
+          : mutateBlend(ps[0].genome!, ps[1].genome!, seed);
+      const maxSatiety = Math.min(...ps.map((p) => p.maxSatiety));
+      this.emit("RESIDENT_BORN", "engine", {
+        resident: id,
+        mode,
+        parents: parentIds,
+        lineage: mode === "fork" ? ps[0].lineage : lineageIdFor(id),
+        // Dual ancestry (blend) / single (fork): the parents' lineages, as record.
+        ancestry: ps.map((p) => p.lineage),
+        costPerParent: cost,
+        satiety: Math.min(cost * ps.length, maxSatiety),
+        maxSatiety,
+        actionsPerTick: Math.min(...ps.map((p) => p.actionsPerTick)),
+        initiative: Math.floor(ps.reduce((a, p) => a + p.initiative, 0) / ps.length),
+        genome: child,
+        mutation: record,
+      });
+    };
+    for (const r of accepted) {
+      if (r.action.verb === "fork") born("fork", [r.seatId], r);
+    }
+    const blends = accepted.filter((r) => r.action.verb === "blend");
+    const used = new Set<Received>();
+    for (const r of blends) {
+      if (used.has(r)) continue;
+      used.add(r);
+      const partner = r.action.args.partner as string;
+      const match = blends.find(
+        (o) => !used.has(o) && o.seatId === partner && o.action.args.partner === r.seatId,
+      );
+      if (!match) {
+        fail(r, "no_mutual_consent");
+        continue;
+      }
+      used.add(match);
+      born("blend", [r.seatId, partner].sort(), r);
+    }
+  }
+
+  /** AA4 stage 1 and maintenance: authorize / replace / revoke, by the living only. */
+  private applySuccessionActs(accepted: Received[]): void {
+    for (const r of accepted) {
+      if (r.action.verb === "authorize_succession") {
+        const instrument = draftInstrument(this.st, r.seatId, r.action.args);
+        if (instrument) this.emit("SUCCESSION_AUTHORIZED", r.seatId, { instrument, seq: r.seq });
+      } else if (r.action.verb === "revoke_succession") {
+        const inst = this.st.residents[r.seatId].instrument;
+        if (inst) this.emit("SUCCESSION_REVOKED", r.seatId, { resident: r.seatId, instrumentId: inst.id, seq: r.seq });
+      }
+    }
+  }
+
   private stepLifecycle(): void {
+    const died: string[] = [];
     for (const id of this.sortedIds(this.st.residents)) {
       const r = this.st.residents[id];
       if (r.alive && r.satiety <= 0) {
         this.emit("DEATH", "engine", { resident: id, cause: "starvation" });
+        died.push(id);
+      }
+    }
+    // AA4 stage 2: after ALL of this tick's deaths, execute each deceased's
+    // in-force instrument against death-tick state. No instrument -> no
+    // succession: the engine never infers an heir. Each transfer is
+    // re-validated and fails closed; what fails stays as salvage.
+    for (const id of died) {
+      const r = this.st.residents[id];
+      const inst = r.instrument;
+      if (!inst) continue;
+      const outcome = executeSuccession(inst, successionContext(this.st));
+      const ok = outcome.executed.some((x) => x.transfer.ref === inventoryRef(id));
+      if (outcome.executed.length > 0) {
+        this.emit("SUCCESSION_EXECUTED", "engine", {
+          deceased: id,
+          successor: inst.successorId,
+          instrumentId: inst.id,
+          inventoryTransferred: ok ? r.inventory : 0,
+          executed: outcome.executed.map((x) => x.transfer),
+          failed: outcome.failed,
+        });
+      } else {
+        this.emit("SUCCESSION_FAILED", "engine", {
+          deceased: id,
+          instrumentId: inst.id,
+          reason: outcome.failed[0]?.reason ?? "instrument names no transfers",
+          salvage: outcome.salvage,
+        });
       }
     }
   }

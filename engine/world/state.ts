@@ -7,6 +7,8 @@
 
 import { createHash } from "node:crypto";
 import { canonicalStringify, type JournalEntry } from "../../ledger/journal.js";
+import { validateGenome, type Genome } from "../../lineage/genome.js";
+import type { SuccessionInstrument } from "../../lineage/succession.js";
 import { CONTENTION_FORMULA_ID, KNOWN_FORMULAS } from "./contention.js";
 
 export const DEFAULT_MAX_EFFORT = 3;
@@ -19,6 +21,7 @@ export function normalizeConfig(config: WorldConfig): WorldConfig {
       ...config.rules,
       maxEffort: config.rules.maxEffort ?? DEFAULT_MAX_EFFORT,
       contentionFormula: config.rules.contentionFormula ?? CONTENTION_FORMULA_ID,
+      reproductionCost: config.rules.reproductionCost ?? DEFAULT_REPRODUCTION_COST,
     },
     residents: config.residents.map((r) => ({ ...r, initiative: r.initiative ?? 0 })),
   };
@@ -37,6 +40,23 @@ export interface ResidentConfig {
   actionsPerTick: number;
   /** AA8 initiative (integer >= 0). Defaults to 0; genomes feed it later. */
   initiative?: number;
+  /** The backend acting through this seat at genesis (AT-20). */
+  backend?: BackendRef;
+  /** Trait layer only. Lineage identity is a journal fact, never genome content. */
+  genome?: Genome;
+}
+/** Which brain acts through a seat: provider identity + exact version. */
+export interface BackendRef {
+  providerId: string;
+  version: string;
+}
+export function isBackendRef(v: unknown): v is BackendRef {
+  const b = v as BackendRef | null;
+  return (
+    typeof b === "object" && b !== null &&
+    typeof b.providerId === "string" && b.providerId.length > 0 &&
+    typeof b.version === "string" && b.version.length > 0
+  );
 }
 export interface Rules {
   satietyDecay: number;
@@ -48,6 +68,8 @@ export interface Rules {
   maxEffort?: number;
   /** AA8: contention formula ID; stamped at genesis. Default CONTENTION_FORMULA_ID. */
   contentionFormula?: string;
+  /** AA12: inventory each parent pays to reproduce. Default 4. */
+  reproductionCost?: number;
 }
 /** Rules as journaled in WORLD_GENESIS: every AA8 field explicit. */
 export type JournaledRules = Required<Rules>;
@@ -70,6 +92,15 @@ export interface ResidentState {
   actionsPerTick: number;
   initiative: number;
   diedAtTick: number | null;
+  bornTick: number;
+  /** Set once from the journaled birth/genesis record; never re-inferred. */
+  lineage: string;
+  parents: string[];
+  genome: Genome | null;
+  /** Null until a backend is bound; an unbound seat cannot act. */
+  backend: BackendRef | null;
+  /** The one succession instrument this resident has in force, if any (AA4). */
+  instrument: SuccessionInstrument | null;
 }
 export interface WorldState {
   seed: number;
@@ -77,7 +108,13 @@ export interface WorldState {
   rules: JournaledRules;
   nodes: Record<string, NodeState>;
   residents: Record<string, ResidentState>;
+  /** Engine-assigned id counter for residents born after genesis. */
+  nextResidentSeq: number;
+  nextInstrumentSeq: number;
 }
+
+export const DEFAULT_REPRODUCTION_COST = 4;
+export const lineageIdFor = (founderId: string): string => `lineage:${founderId}`;
 
 export function hashState(state: WorldState): string {
   return createHash("sha256")
@@ -127,6 +164,14 @@ export function validateConfig(config: WorldConfig): void {
       }
     }
     if (r.satiety > r.maxSatiety) throw new Error(`resident ${r.id}: satiety > maxSatiety`);
+    if (/^res-\d+$/.test(r.id)) throw new Error(`resident id ${r.id} is reserved for engine-born residents`);
+    if (r.backend !== undefined && !isBackendRef(r.backend)) {
+      throw new Error(`resident ${r.id}: backend needs non-empty providerId and version`);
+    }
+    if (r.genome) {
+      const issues = validateGenome(r.genome);
+      if (issues.length > 0) throw new Error(`resident ${r.id}: invalid genome: ${issues.join("; ")}`);
+    }
   }
   const k = config.rules;
   for (const v of [k.satietyDecay, k.maxGatherPerAction, k.blightPercent, k.blightMax]) {
@@ -135,6 +180,8 @@ export function validateConfig(config: WorldConfig): void {
   if (k.blightPercent > 100) throw new Error("blightPercent must be <= 100");
   const maxEffort = k.maxEffort ?? DEFAULT_MAX_EFFORT;
   if (!Number.isSafeInteger(maxEffort) || maxEffort < 1) throw new Error("maxEffort must be an integer >= 1");
+  const cost = k.reproductionCost ?? DEFAULT_REPRODUCTION_COST;
+  if (!Number.isSafeInteger(cost) || cost < 1) throw new Error("reproductionCost must be an integer >= 1");
   const formula = k.contentionFormula ?? CONTENTION_FORMULA_ID;
   if (!KNOWN_FORMULAS.has(formula)) throw new Error(`unknown contention formula ${formula}`);
 }
@@ -166,9 +213,23 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         actionsPerTick: r.actionsPerTick,
         initiative: r.initiative ?? 0,
         diedAtTick: null,
+        bornTick: 0,
+        lineage: lineageIdFor(r.id), // every genesis resident founds a lineage
+        parents: [],
+        genome: r.genome ? structuredClone(r.genome) : null,
+        backend: r.backend ? { providerId: r.backend.providerId, version: r.backend.version } : null,
+        instrument: null,
       };
     }
-    return { seed: int(p, "seed"), tick: 0, rules: { ...full.rules } as JournaledRules, nodes, residents };
+    return {
+      seed: int(p, "seed"),
+      tick: 0,
+      rules: { ...full.rules } as JournaledRules,
+      nodes,
+      residents,
+      nextResidentSeq: 1,
+      nextInstrumentSeq: 1,
+    };
   }
   if (state === null) throw new Error(`${entry.type} before WORLD_GENESIS`);
 
@@ -234,6 +295,111 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       r.satiety += consumed;
       return next;
     }
+    case "RESIDENT_BORN": {
+      // AA12 reproduction. The journaled record is the ONLY source of the
+      // child's lineage; nothing downstream re-derives it from parentage.
+      const id = str(p, "resident");
+      if (id !== `res-${state.nextResidentSeq}` || next.residents[id]) {
+        throw new Error("RESIDENT_BORN invariant violated (id)");
+      }
+      const mode = str(p, "mode");
+      const parents = p.parents as string[];
+      const cost = nonNeg(p, "costPerParent");
+      if (!((mode === "fork" && parents.length === 1) || (mode === "blend" && parents.length === 2))) {
+        throw new Error("RESIDENT_BORN invariant violated (mode/parents)");
+      }
+      for (const pid of parents) {
+        const parent = next.residents[pid];
+        if (!parent || !parent.alive || parent.inventory < cost) {
+          throw new Error("RESIDENT_BORN invariant violated (parent)");
+        }
+        parent.inventory -= cost;
+      }
+      const lineage = str(p, "lineage");
+      const expected = mode === "fork" ? state.residents[parents[0]].lineage : lineageIdFor(id);
+      if (lineage !== expected) throw new Error("RESIDENT_BORN invariant violated (lineage rule)");
+      next.residents[id] = {
+        alive: true,
+        satiety: nonNeg(p, "satiety"),
+        maxSatiety: nonNeg(p, "maxSatiety"),
+        inventory: 0,
+        actionsPerTick: nonNeg(p, "actionsPerTick"),
+        initiative: nonNeg(p, "initiative"),
+        diedAtTick: null,
+        bornTick: entry.tick,
+        lineage,
+        parents: [...parents],
+        genome: structuredClone(p.genome as Genome),
+        backend: null, // a new resident: a brain must be bound before it can act
+        instrument: null,
+      };
+      next.nextResidentSeq = state.nextResidentSeq + 1;
+      return next;
+    }
+    case "SUCCESSION_AUTHORIZED": {
+      // AA4 stage 1: only a LIVING resident authorizes, naming a living,
+      // distinct successor. A new instrument replaces the previous one.
+      const inst = p.instrument as SuccessionInstrument;
+      const founder = next.residents[inst?.founderId];
+      const successor = next.residents[inst?.successorId];
+      if (
+        !founder || !founder.alive || !successor || !successor.alive ||
+        inst.founderId === inst.successorId || inst.revoked ||
+        inst.id !== `inst-${state.nextInstrumentSeq}` || inst.authorizedTick !== entry.tick
+      ) {
+        throw new Error("SUCCESSION_AUTHORIZED invariant violated");
+      }
+      founder.instrument = structuredClone(inst);
+      next.nextInstrumentSeq = state.nextInstrumentSeq + 1;
+      return next;
+    }
+    case "SUCCESSION_REVOKED": {
+      const r = next.residents[str(p, "resident")];
+      if (!r || !r.alive || !r.instrument || r.instrument.id !== str(p, "instrumentId")) {
+        throw new Error("SUCCESSION_REVOKED invariant violated (the dead cannot revoke)");
+      }
+      r.instrument = null;
+      return next;
+    }
+    case "SUCCESSION_EXECUTED":
+    case "SUCCESSION_FAILED": {
+      // AA4 stage 2. The engine executes authority granted while the founder
+      // lived; it never invents a successor. This record is only valid for a
+      // resident who died THIS tick holding THIS instrument, which is then
+      // spent — so it can never execute twice.
+      const deceased = next.residents[str(p, "deceased")];
+      const inst = deceased?.instrument;
+      if (!deceased || deceased.alive || deceased.diedAtTick !== entry.tick || !inst || inst.id !== str(p, "instrumentId")) {
+        throw new Error(`${entry.type} invariant violated (no in-force instrument for a resident who died this tick)`);
+      }
+      if (entry.type === "SUCCESSION_EXECUTED") {
+        const successor = next.residents[str(p, "successor")];
+        const amount = nonNeg(p, "inventoryTransferred");
+        if (
+          !successor || !successor.alive || inst.successorId !== p.successor ||
+          (inst.expiresTick !== null && inst.expiresTick <= entry.tick) || amount > deceased.inventory
+        ) {
+          throw new Error("SUCCESSION_EXECUTED invariant violated");
+        }
+        deceased.inventory -= amount;
+        successor.inventory += amount;
+      }
+      deceased.instrument = null;
+      return next;
+    }
+    case "SEAT_BACKEND_BOUND": {
+      // AA11: a backend change is a journaled engine event. Identity, memory,
+      // genome and history are untouched — the brain is replaceable, the
+      // life is not. Only the backend reference changes.
+      const r = next.residents[str(p, "seat")];
+      const to = p.backend;
+      if (!r || !r.alive || !isBackendRef(to)) throw new Error("SEAT_BACKEND_BOUND invariant violated");
+      if (canonicalStringify(p.previous ?? null) !== canonicalStringify(r.backend)) {
+        throw new Error("SEAT_BACKEND_BOUND invariant violated (previous mismatch)");
+      }
+      r.backend = { providerId: to.providerId, version: to.version };
+      return next;
+    }
     case "DEATH": {
       const r = next.residents[str(p, "resident")];
       if (!r || !r.alive) throw new Error("DEATH invariant violated");
@@ -251,6 +417,8 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     // Audit-only entries: recorded for the ledger, no state effect.
     case "OBSERVATION_DELIVERED":
     case "CONTENTION_RESOLVED":
+    case "BACKEND_BIND_REJECTED":
+    case "REPRODUCTION_FAILED":
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
       return state;
