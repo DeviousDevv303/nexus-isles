@@ -37,6 +37,11 @@ interface Received {
   seatId: string;
   seq: number;
   action: Action;
+  credentialId: string | null;
+}
+interface Queued {
+  action: Action;
+  credentialId: string | null;
 }
 interface NodeResolution {
   node: string;
@@ -60,7 +65,7 @@ function effortOf(action: Action): number {
 }
 
 export class World {
-  private pending = new Map<string, Action[]>();
+  private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
 
   private constructor(
@@ -179,14 +184,14 @@ export class World {
    * why) lands in the journal at that tick. Queued-but-unticked actions are
    * not history and do not survive a restart.
    */
-  submit(seatId: string, action: Action): void {
+  submit(seatId: string, action: Action, attribution?: { credentialId: string }): void {
     // Normalise through JSON so what is validated and journaled is exactly
     // what survives a save/load round-trip (no undefined/NaN/function edge).
     const normalised = JSON.parse(
       JSON.stringify({ verb: action.verb, args: action.args ?? {} }),
     ) as Action;
     const list = this.pending.get(seatId) ?? [];
-    list.push(normalised);
+    list.push({ action: normalised, credentialId: attribution?.credentialId ?? null });
     this.pending.set(seatId, list);
   }
 
@@ -312,7 +317,9 @@ export class World {
   private stepReceive(): Received[] {
     const out: Received[] = [];
     for (const seatId of [...this.pending.keys()].sort()) {
-      (this.pending.get(seatId) ?? []).forEach((action, seq) => out.push({ seatId, seq, action }));
+      (this.pending.get(seatId) ?? []).forEach((q, seq) =>
+        out.push({ seatId, seq, action: q.action, credentialId: q.credentialId }),
+      );
     }
     this.pending = new Map();
     return out; // already canonical: (seatId, seq)
@@ -325,7 +332,7 @@ export class World {
       const res = validateAction(this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0);
       // AT-20: every action record carries the backend that produced it.
       const backend = this.st.residents[r.seatId]?.backend ?? null;
-      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend };
+      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend, credential: r.credentialId };
       if (res.ok) {
         if (r.action.verb === "gather") {
           committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);
