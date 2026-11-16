@@ -361,7 +361,6 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     case "CONTENTION_RESOLVED":
     case "BACKEND_BIND_REJECTED":
     case "REPRODUCTION_FAILED":
-    case "SUCCESSION_EXECUTED": // schema reserved; see lineage/entities.ts
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
       return state;
