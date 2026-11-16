@@ -19,10 +19,13 @@ import {
   type Genome,
 } from "../../lineage/genome.js";
 import { validateInheritance, type MutationRecord } from "../../lineage/mutation.js";
-import type { JournalEntry } from "../../ledger/journal.js";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { Journal, type JournalEntry } from "../../ledger/journal.js";
+import { deriveVerifiedEntities } from "../../lineage/verifiedEntities.js";
 import type { WorldConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
-import { TEST_BACKEND, rebuildJournal } from "../helpers/worldFixtures.js";
+import { TEST_BACKEND, rebuildJournal, tempDir } from "../helpers/worldFixtures.js";
 
 function cfg(): WorldConfig {
   return {
@@ -216,9 +219,16 @@ describe("AA12 dynasty, family — succession integrity", () => {
     ...base,
     { index: base.length, tick, type, actor: "engine", payload, prevHash: "x", hash: "y" },
   ];
-  /** A journal-level death followed by a succession record at the same tick. */
-  const dieAndSucceed = (base: readonly JournalEntry[], deceased: string, successor: unknown, tick = 99) =>
-    fake(fake(base, "DEATH", tick, { resident: deceased, cause: "test" }), "SUCCESSION_EXECUTED", tick, { deceased, successor });
+  /** Authorized while alive (tick - 1), then a death and its succession record at `tick`. */
+  const dieAndSucceed = (base: readonly JournalEntry[], deceased: string, successor: unknown, tick = 99) => {
+    const id = `inst-test-${deceased}-${tick}`;
+    const authorized = fake(base, "SUCCESSION_AUTHORIZED", tick - 1, {
+      instrument: { id, founderId: deceased, successorId: successor },
+    });
+    return fake(fake(authorized, "DEATH", tick, { resident: deceased, cause: "test" }), "SUCCESSION_EXECUTED", tick, {
+      deceased, successor, instrumentId: id,
+    });
+  };
   const succeedOnly = (base: readonly JournalEntry[], deceased: unknown, successor: unknown, tick = 99) =>
     fake(base, "SUCCESSION_EXECUTED", tick, { deceased, successor });
   /** alpha has forked res-1 (lineage:alpha). */
@@ -271,6 +281,67 @@ describe("AA12 dynasty, family — succession integrity", () => {
     for (const bad of [succeedOnly(base, "alpha", undefined), dieAndSucceed(base, "alpha", "alpha"), late]) {
       expect(deriveEntities(bad).dynasties).toEqual([]);
     }
+  });
+
+  it("a correctly SHAPED record with no authorized instrument behind it is rejected", () => {
+    const base = forked().entries();
+    const died = fake(base, "DEATH", 99, { resident: "alpha" });
+    const rec = (b: JournalEntry[], instrumentId?: string) =>
+      fake(b, "SUCCESSION_EXECUTED", 99, { deceased: "alpha", successor: "res-1", ...(instrumentId ? { instrumentId } : {}) });
+    const auth = (b: readonly JournalEntry[], id: string, successorId: string, tick = 50) =>
+      fake(b, "SUCCESSION_AUTHORIZED", tick, { instrument: { id, founderId: "alpha", successorId } });
+    const die = (b: JournalEntry[]) => fake(b, "DEATH", 99, { resident: "alpha" });
+    const cases: JournalEntry[][] = [
+      rec(died), // no instrument ever authorized
+      rec(died, "inst-9"), // names an instrument that does not exist
+      rec(die(auth(base, "inst-1", "res-1")), "inst-2"), // wrong instrument id
+      rec(die(auth(base, "inst-1", "bravo")), "inst-1"), // instrument names someone else
+      rec(die(fake(auth(base, "inst-1", "res-1"), "SUCCESSION_REVOKED", 60, { resident: "alpha", instrumentId: "inst-1" })), "inst-1"), // revoked
+      rec(auth(died, "inst-1", "res-1", 99), "inst-1"), // "authorized" after death: the dead cannot authorize
+    ];
+    for (const c of cases) {
+      const e = deriveEntities(c);
+      expect(e.rejectedSuccessions.map((r) => r.reason)).toEqual(["no_matching_instrument"]);
+      expect(e.dynasties).toEqual([]);
+      expect(e.familyOf["res-1"]).toBe("res-1");
+    }
+    // control: the same shape WITH its instrument is accepted and records the instrument id
+    const ok = deriveEntities(rec(die(auth(base, "inst-1", "res-1")), "inst-1"));
+    expect(ok.successions.map((x) => x.instrumentId)).toEqual(["inst-1"]);
+    expect(ok.dynasties).toEqual(["lineage:alpha"]);
+  });
+
+  it("INJECTED-EVENT IMMUNITY: a hand-crafted SUCCESSION_EXECUTED, however well-formed, derives nothing", () => {
+    const w = forked();
+    // (1) raw entries: a real-looking death + a well-formed record, no engine-recorded instrument
+    const injected = fake(fake(w.entries(), "DEATH", 99, { resident: "alpha", cause: "starvation" }), "SUCCESSION_EXECUTED", 99, {
+      deceased: "alpha", successor: "res-1", instrumentId: "inst-1", inventoryTransferred: 0, executed: [], failed: [],
+    });
+    const e = deriveEntities(injected);
+    expect(e.dynasties).toEqual([]);
+    expect(e.familyOf["res-1"]).toBe("res-1");
+    expect(e.successions).toEqual([]);
+    expect(e.rejectedSuccessions.map((r) => r.reason)).toEqual(["no_matching_instrument"]);
+
+    // (2) appended to a real journal with VALID hashes: replay through the reducer refuses it
+    const appended = rebuildJournal(w);
+    const t = w.tickNumber;
+    appended.append({ tick: t, type: "SUCCESSION_EXECUTED", actor: "engine", payload: { deceased: "alpha", successor: "res-1", instrumentId: "inst-1", inventoryTransferred: 0 } });
+    appended.append({ tick: t, type: "TICK_COMMIT", actor: "engine", payload: {} });
+    expect(appended.verify().ok).toBe(true); // the chain alone does not catch an appended tail
+    expect(() => deriveVerifiedEntities(appended)).toThrow();
+
+    // (3) inserted into the middle of a saved journal: the hash chain refuses to load it
+    const dir = tempDir();
+    const path = join(dir, "w.jsonl");
+    rebuildJournal(w).saveToFile(path);
+    const lines = readFileSync(path, "utf8").trim().split("\n");
+    const forged = JSON.stringify({ ...JSON.parse(lines[3]), type: "SUCCESSION_EXECUTED", payload: { deceased: "alpha", successor: "res-1", instrumentId: "inst-1" } });
+    writeFileSync(path, [...lines.slice(0, 3), forged, ...lines.slice(3)].join("\n") + "\n");
+    expect(() => Journal.loadFromFile(path)).toThrow(/verification/);
+
+    // control: the untouched journal derives cleanly, with no dynasty
+    expect(deriveVerifiedEntities(rebuildJournal(w)).dynasties).toEqual([]);
   });
 
   it("invalid successor: a dead successor inherits nothing", () => {
