@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import { deriveEntities } from "../../lineage/entities.js";
+import { deriveVerifiedEntities } from "../../lineage/verifiedEntities.js";
 import { standardGenesisGenome } from "../../lineage/genome.js";
 import type { WorldConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
@@ -69,6 +70,14 @@ describe("AT-16 world-core succession", () => {
     expect(e.familyOf["res-1"]).toBe("alpha");
     // the DEATH is journaled before the succession it triggers
     expect(of(w, "DEATH").find((d) => d.payload.resident === "alpha")!.index).toBeLessThan(ex[0].index);
+  });
+
+  it("the dynasty also derives through the validated-history path (chain + reducer replay)", () => {
+    const w = story(authorize("res-1"));
+    const e = deriveVerifiedEntities(rebuildJournal(w));
+    expect(e.dynasties).toEqual(["lineage:alpha"]);
+    expect(e.successions[0].instrumentId).toBe("inst-1");
+    expect(deriveVerifiedEntities(rebuildJournal(story())).dynasties).toEqual([]);
   });
 
   it("the successor actually receives the estate", () => {
