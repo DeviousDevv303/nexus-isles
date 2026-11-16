@@ -7,6 +7,22 @@
 
 import { createHash } from "node:crypto";
 import { canonicalStringify, type JournalEntry } from "../../ledger/journal.js";
+import { CONTENTION_FORMULA_ID, KNOWN_FORMULAS } from "./contention.js";
+
+export const DEFAULT_MAX_EFFORT = 3;
+
+/** Fill AA8 defaults so the formula ID and bounds are always journaled. */
+export function normalizeConfig(config: WorldConfig): WorldConfig {
+  return {
+    ...config,
+    rules: {
+      ...config.rules,
+      maxEffort: config.rules.maxEffort ?? DEFAULT_MAX_EFFORT,
+      contentionFormula: config.rules.contentionFormula ?? CONTENTION_FORMULA_ID,
+    },
+    residents: config.residents.map((r) => ({ ...r, initiative: r.initiative ?? 0 })),
+  };
+}
 
 export interface NodeConfig {
   id: string;
@@ -19,6 +35,8 @@ export interface ResidentConfig {
   satiety: number;
   maxSatiety: number;
   actionsPerTick: number;
+  /** AA8 initiative (integer >= 0). Defaults to 0; genomes feed it later. */
+  initiative?: number;
 }
 export interface Rules {
   satietyDecay: number;
@@ -26,7 +44,13 @@ export interface Rules {
   /** Per node per tick, in percent (0-100). Integer so no float drift. */
   blightPercent: number;
   blightMax: number;
+  /** AA8: highest committed effort a single claim may carry. Default 3. */
+  maxEffort?: number;
+  /** AA8: contention formula ID; stamped at genesis. Default CONTENTION_FORMULA_ID. */
+  contentionFormula?: string;
 }
+/** Rules as journaled in WORLD_GENESIS: every AA8 field explicit. */
+export type JournaledRules = Required<Rules>;
 export interface WorldConfig {
   nodes: NodeConfig[];
   residents: ResidentConfig[];
@@ -44,12 +68,13 @@ export interface ResidentState {
   maxSatiety: number;
   inventory: number;
   actionsPerTick: number;
+  initiative: number;
   diedAtTick: number | null;
 }
 export interface WorldState {
   seed: number;
   tick: number;
-  rules: Rules;
+  rules: JournaledRules;
   nodes: Record<string, NodeState>;
   residents: Record<string, ResidentState>;
 }
@@ -96,7 +121,7 @@ export function validateConfig(config: WorldConfig): void {
   for (const r of config.residents) {
     if (rids.has(r.id)) throw new Error(`duplicate resident id ${r.id}`);
     rids.add(r.id);
-    for (const v of [r.satiety, r.maxSatiety, r.actionsPerTick]) {
+    for (const v of [r.satiety, r.maxSatiety, r.actionsPerTick, r.initiative ?? 0]) {
       if (!Number.isSafeInteger(v) || v < 0) {
         throw new Error(`resident ${r.id}: numeric fields must be integers >= 0`);
       }
@@ -108,6 +133,10 @@ export function validateConfig(config: WorldConfig): void {
     if (!Number.isSafeInteger(v) || v < 0) throw new Error("rules must be integers >= 0");
   }
   if (k.blightPercent > 100) throw new Error("blightPercent must be <= 100");
+  const maxEffort = k.maxEffort ?? DEFAULT_MAX_EFFORT;
+  if (!Number.isSafeInteger(maxEffort) || maxEffort < 1) throw new Error("maxEffort must be an integer >= 1");
+  const formula = k.contentionFormula ?? CONTENTION_FORMULA_ID;
+  if (!KNOWN_FORMULAS.has(formula)) throw new Error(`unknown contention formula ${formula}`);
 }
 
 /**
@@ -122,22 +151,24 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     if (entry.index !== 0) throw new Error("WORLD_GENESIS must be index 0");
     const config = p.config as WorldConfig;
     validateConfig(config);
+    const full = normalizeConfig(config);
     const nodes: Record<string, NodeState> = {};
-    for (const n of config.nodes) {
+    for (const n of full.nodes) {
       nodes[n.id] = { capacity: n.capacity, amount: n.amount, regen: n.regen };
     }
     const residents: Record<string, ResidentState> = {};
-    for (const r of config.residents) {
+    for (const r of full.residents) {
       residents[r.id] = {
         alive: true,
         satiety: r.satiety,
         maxSatiety: r.maxSatiety,
         inventory: 0,
         actionsPerTick: r.actionsPerTick,
+        initiative: r.initiative ?? 0,
         diedAtTick: null,
       };
     }
-    return { seed: int(p, "seed"), tick: 0, rules: { ...config.rules }, nodes, residents };
+    return { seed: int(p, "seed"), tick: 0, rules: { ...full.rules } as JournaledRules, nodes, residents };
   }
   if (state === null) throw new Error(`${entry.type} before WORLD_GENESIS`);
 
@@ -170,6 +201,16 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       const delta = nonNeg(p, "delta");
       if (!r || !r.alive || delta > r.satiety) throw new Error("NEED_DECAY invariant violated");
       r.satiety -= delta;
+      return next;
+    }
+    case "EFFORT_SPENT": {
+      // AA8: committed effort is accounted — spent win or lose.
+      const r = next.residents[str(p, "resident")];
+      const cost = nonNeg(p, "cost");
+      if (!r || !r.alive || cost > r.satiety) {
+        throw new Error("EFFORT_SPENT invariant violated");
+      }
+      r.satiety -= cost;
       return next;
     }
     case "GATHER_GRANTED": {
@@ -209,6 +250,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     }
     // Audit-only entries: recorded for the ledger, no state effect.
     case "OBSERVATION_DELIVERED":
+    case "CONTENTION_RESOLVED":
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
       return state;

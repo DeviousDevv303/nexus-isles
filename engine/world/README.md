@@ -20,3 +20,27 @@ Known limits (by design, this step): placeholder economy (food/satiety),
 uniform observation view (fog/geography land with the island map), queued
 but un-ticked actions are not history and are lost on restart, `tokensPerTick`
 is a seat-side budget not yet enforced by the engine.
+
+## AA8 contention — `contention-v1` (S2 path a, owner ruling 2026-11-16)
+
+`contention.ts` is the executable AA8 formula. Per node per tick, claims are
+ordered by **committed effort (high first) → initiative (high first) → seeded
+draw (low first)**, then allocated `min(requested, remaining)` down that
+order. Effort is an optional integer `args.effort` (default 1, max
+`rules.maxEffort`, default 3); it costs `effort − 1` satiety, spent win or
+lose (`EFFORT_SPENT`). Initiative is a resident stat (`initiative`, default
+0). The tiebreak draw is a uint32 from `rngFor(seed, tick, "conflict:<node>")`
+taken in canonical claim order, journaled with the claim.
+
+Journaled: the formula ID in `WORLD_GENESIS` rules, in every
+`CONTENTION_RESOLVED` (all inputs + ranks + grants) and every
+`GATHER_GRANTED`. Replay re-runs `resolveContention` on the journaled inputs
+and must reproduce the journaled grants (`tests/at15/aa8-formula.test.ts`).
+The order never reads request size, seat id, tier, provider, or arrival time.
+
+**Status, stated plainly:** AT-15 is green against `contention-v1` as
+proposed here. The constitution states AA8 as a principle only; the numeric
+parameters (effort cost, `maxEffort`, initiative source) are this build's
+proposal and need the owner's ratification before being called frozen. Grants
+are still whole-request in priority order (the last claimant may receive a
+remainder); that is a stated property of v1, not a hidden one.
