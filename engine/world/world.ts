@@ -17,9 +17,11 @@
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { Journal, type JournalEntry } from "../../ledger/journal.js";
 import type { Action, Observation } from "../../seats/seatProvider.js";
+import { resolveContention, type Claim, type ClaimOutcome } from "./contention.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
+  normalizeConfig,
   reduce,
   validateConfig,
   type WorldConfig,
@@ -32,12 +34,10 @@ interface Received {
   seq: number;
   action: Action;
 }
-interface Grant {
-  seatId: string;
+interface NodeResolution {
   node: string;
-  seq: number;
-  requested: number;
-  granted: number;
+  available: number;
+  outcomes: ClaimOutcome[];
 }
 
 export interface Snapshot {
@@ -49,6 +49,10 @@ export interface Snapshot {
 export interface WorldOptions {
   /** JSONL journal path. Tail is appended at step 12 of every tick. */
   persistPath?: string;
+}
+
+function effortOf(action: Action): number {
+  return (action.args.effort as number | undefined) ?? 1;
 }
 
 export class World {
@@ -72,7 +76,7 @@ export class World {
       tick: 0,
       type: "WORLD_GENESIS",
       actor: "engine",
-      payload: { seed, config: structuredClone(config) },
+      payload: { seed, config: structuredClone(normalizeConfig(config)) },
     });
     const world = new World(journal, reduce(null, genesis), opts.persistPath, 0);
     world.commit();
@@ -190,8 +194,8 @@ export class World {
     this.stepObservations(); //                                                5
     const received = this.stepReceive(); //                                    6
     const accepted = this.stepValidate(received); //                           7
-    const grants = this.stepResolveConflicts(accepted); //                     8
-    this.stepApply(grants, accepted); //                                       9
+    const resolutions = this.stepResolveConflicts(accepted); //                8
+    this.stepApply(resolutions, accepted); //                                       9
     this.stepLifecycle(); //                                                  10
     this.commit(); //                                                         11
     this.persist(); //                                                        12
@@ -280,10 +284,14 @@ export class World {
 
   private stepValidate(received: Received[]): Received[] {
     const accepted: Received[] = [];
+    const committed = new Map<string, number>();
     for (const r of received) {
-      const res = validateAction(this.st, r.seatId, r.action, r.seq);
+      const res = validateAction(this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0);
       const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args };
       if (res.ok) {
+        if (r.action.verb === "gather") {
+          committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);
+        }
         this.emit("ACTION_ACCEPTED", r.seatId, body);
         accepted.push(r);
       } else {
@@ -293,46 +301,76 @@ export class World {
     return accepted;
   }
 
-  /** Pure: decides who gets what from a contended node. Emits nothing. */
-  private stepResolveConflicts(accepted: Received[]): Grant[] {
-    const byNode = new Map<string, Map<string, Received[]>>();
+  /**
+   * AA8 (contention-v1). Pure with respect to the journal: builds the claims
+   * for each node (draws taken in canonical claim order, so arrival order and
+   * submission speed never matter) and resolves them. Emits nothing.
+   */
+  private stepResolveConflicts(accepted: Received[]): NodeResolution[] {
+    const byNode = new Map<string, Received[]>();
     for (const r of accepted) {
       if (r.action.verb !== "gather") continue;
       const node = r.action.args.node as string;
-      const seats = byNode.get(node) ?? new Map<string, Received[]>();
-      const list = seats.get(r.seatId) ?? [];
-      list.push(r);
-      seats.set(r.seatId, list);
-      byNode.set(node, seats);
+      const list = byNode.get(node) ?? [];
+      list.push(r); // `accepted` is already in canonical (seatId, seq) order
+      byNode.set(node, list);
     }
-    const grants: Grant[] = [];
+    const out: NodeResolution[] = [];
     for (const node of [...byNode.keys()].sort()) {
-      const seats = byNode.get(node) as Map<string, Received[]>;
-      const order = rngFor(this.st.seed, this.st.tick, `conflict:${node}`).shuffle(
-        [...seats.keys()].sort(),
-      );
-      let remaining = this.st.nodes[node].amount;
-      for (const seatId of order) {
-        for (const r of seats.get(seatId) as Received[]) {
-          const requested = r.action.args.amount as number;
-          const granted = Math.min(requested, remaining);
-          remaining -= granted;
-          grants.push({ seatId, node, seq: r.seq, requested, granted });
-        }
-      }
+      const rng = rngFor(this.st.seed, this.st.tick, `conflict:${node}`);
+      const claims: Claim[] = (byNode.get(node) as Received[]).map((r) => ({
+        seatId: r.seatId,
+        seq: r.seq,
+        requested: r.action.args.amount as number,
+        effort: effortOf(r.action),
+        initiative: this.st.residents[r.seatId].initiative,
+        draw: rng.uint32(),
+      }));
+      const available = this.st.nodes[node].amount;
+      out.push({ node, available, outcomes: resolveContention(available, claims) });
     }
-    return grants;
+    return out;
   }
 
-  private stepApply(grants: Grant[], accepted: Received[]): void {
-    for (const g of grants) {
-      this.emit("GATHER_GRANTED", g.seatId, {
-        resident: g.seatId,
-        node: g.node,
-        seq: g.seq,
-        requested: g.requested,
-        granted: g.granted,
+  private stepApply(resolutions: NodeResolution[], accepted: Received[]): void {
+    // Committed effort is spent win or lose (AA8: effort accounted).
+    for (const r of accepted) {
+      if (r.action.verb !== "gather") continue;
+      const cost = effortOf(r.action) - 1;
+      if (cost > 0) {
+        this.emit("EFFORT_SPENT", r.seatId, { resident: r.seatId, seq: r.seq, cost });
+      }
+    }
+    for (const res of resolutions) {
+      // The contention record: formula ID + every input needed to re-derive
+      // the grants (replay reproduces them via resolveContention).
+      this.emit("CONTENTION_RESOLVED", "engine", {
+        formulaId: this.st.rules.contentionFormula,
+        node: res.node,
+        available: res.available,
+        claims: res.outcomes.map((o) => ({
+          seat: o.seatId,
+          seq: o.seq,
+          requested: o.requested,
+          effort: o.effort,
+          initiative: o.initiative,
+          draw: o.draw,
+          rank: o.rank,
+          granted: o.granted,
+        })),
       });
+      for (const o of res.outcomes) {
+        this.emit("GATHER_GRANTED", o.seatId, {
+          resident: o.seatId,
+          node: res.node,
+          seq: o.seq,
+          requested: o.requested,
+          granted: o.granted,
+          effort: o.effort,
+          rank: o.rank,
+          formulaId: this.st.rules.contentionFormula,
+        });
+      }
     }
     for (const r of accepted) {
       if (r.action.verb !== "eat") continue;

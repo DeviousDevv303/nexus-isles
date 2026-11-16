@@ -24,6 +24,8 @@ export function validateAction(
   seatId: string,
   action: Action,
   indexWithinSeat: number,
+  /** Effort already committed (cost = effort - 1 per gather) by this seat this tick. */
+  committedCost = 0,
 ): ValidationResult {
   const resident = state.residents[seatId];
   if (!resident) return { ok: false, reason: "unknown_seat" };
@@ -42,6 +44,15 @@ export function validateAction(
       const amount = action.args.amount;
       if (!isPositiveInt(amount) || amount > state.rules.maxGatherPerAction) {
         return { ok: false, reason: "invalid_amount" };
+      }
+      const effort = action.args.effort ?? 1;
+      if (!isPositiveInt(effort) || effort > state.rules.maxEffort) {
+        return { ok: false, reason: "invalid_effort" };
+      }
+      // Effort costs satiety (effort - 1 beyond baseline); a claim may not
+      // be committed if it would exhaust the resident outright.
+      if (committedCost + (effort - 1) >= resident.satiety) {
+        return { ok: false, reason: "insufficient_stamina" };
       }
       return { ok: true };
     }

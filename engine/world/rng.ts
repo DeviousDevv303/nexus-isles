@@ -38,6 +38,11 @@ export class Rng {
     return (t >>> 0) / 4294967296;
   }
 
+  /** Uniform unsigned 32-bit integer (journal-safe, no float round-trip). */
+  uint32(): number {
+    return Math.floor(this.next() * 4294967296);
+  }
+
   /** Uniform integer in [0, n). */
   int(n: number): number {
     if (!Number.isSafeInteger(n) || n <= 0) {
