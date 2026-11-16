@@ -1,4 +1,4 @@
 # AT-01 Determinism
 
-Same seed + same actions -> identical outcomes. Suite lands with the world
-core (build order step 2).
+Same seed + same actions -> identical outcomes, asserted on journal hashes.
+Suite: `determinism.test.ts` (world core, build order step 2).

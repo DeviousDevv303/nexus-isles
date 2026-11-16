@@ -1,4 +1,4 @@
 # AT-02 Persistence
 
-Restart preserves world state. Suite lands with the world core (build order
-step 2). Ledger persistence round-trip is already covered in tests/at09.
+Restart preserves world state and historical truth. Suite: `persistence.test.ts`.
+Ledger file round-trip foundations remain in tests/at09.
