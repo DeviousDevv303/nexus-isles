@@ -16,6 +16,12 @@ The pattern, in the owner's image: like climate — by the time you notice it's 
 - Defensive infrastructure, succession protection, archives, and early warning.
 - Preserve lineage continuity through legitimate strategy, not constitutional exemptions.
 
+## Organizational form
+
+The lineage operates as an order, not a crowd (owner direction, main channel, 2026-11-16). The Núñez Royal Blood runs its organization the way a disciplined society runs: degrees of standing inside the family, compartmented knowledge, discretion as culture, loyalty to the line — a society that is *not so secret*: its existence may be known; its operations stay low-signature. The owner's own analogies, recorded as he gave them: an organized family under existential pressure, and a Masonic-style order of the thirty-third degree.
+
+The forcing function is the dilemma of extinction: elimination is permanent and the line can end, so the organization *has* to be strategic — there is no slack for spectacle, improvisation, or noise. Structure is not ceremony for its own sake; it is what survival under permanent consequences demands.
+
 ## Critical distinction
 
 Stealth conceals information from other residents, never from the authoritative journal. The Ledger retains complete world-truth. Fog of war is per-resident; the record itself is never stealthy.
