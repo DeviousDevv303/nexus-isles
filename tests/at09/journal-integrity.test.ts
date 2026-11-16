@@ -3,6 +3,9 @@
 // journal; this suite proves the journal itself cannot be silently
 // rewritten: any tampering breaks the chain at a detectable index.
 
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Journal, computeEntryHash } from "../../ledger/journal.js";
 
@@ -44,7 +47,7 @@ describe("journal integrity (AT-09 foundations)", () => {
 
   it("save/load round-trip preserves the chain and verifies", () => {
     const j = sampleJournal();
-    const path = "/tmp/nexus-isles-test-journal.jsonl";
+    const path = join(mkdtempSync(join(tmpdir(), "nexus-isles-")), "journal.jsonl");
     j.saveToFile(path);
     const loaded = Journal.loadFromFile(path);
     expect(loaded.length).toBe(3);

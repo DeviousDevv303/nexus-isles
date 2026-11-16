@@ -3,6 +3,9 @@
 // round-trip. This is the property every benchmark report and every
 // interface-truth rendering stands on (Annex A.1).
 
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Journal, replay, type JournalEntry } from "../../ledger/journal.js";
 
@@ -45,7 +48,7 @@ describe("replay determinism (AT-14 foundations)", () => {
 
   it("replay after save/load reproduces the identical state", () => {
     const j = sampleJournal();
-    const path = "/tmp/nexus-isles-test-replay.jsonl";
+    const path = join(mkdtempSync(join(tmpdir(), "nexus-isles-")), "replay.jsonl");
     j.saveToFile(path);
     const loaded = Journal.loadFromFile(path);
     const a = replay(j, { gathers: 0, deaths: 0 }, reducer);
