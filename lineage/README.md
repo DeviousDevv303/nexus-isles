@@ -34,3 +34,15 @@ Not wired yet: the world core does not execute succession instruments, so
 no `SUCCESSION_EXECUTED` entry is emitted by a live world; dynasty status is
 derived correctly when one is present (tested on journal entries). "Allied"
 as a blend precondition is mutual consent only; alliances do not exist yet.
+
+## Succession in the world core (AA4, live)
+
+`authorize_succession` / `revoke_succession` are validated actions for the
+living only. At death, after all of the tick's deaths, the engine executes
+the deceased's in-force instrument through `executeSuccession` against
+death-tick state and journals `SUCCESSION_EXECUTED` or `SUCCESSION_FAILED`.
+No instrument means no succession: the engine never infers an heir, and an
+unclaimed estate stays where it is. The reducer accepts a succession record
+only for a resident who died that tick holding that instrument, and the
+instrument is spent on use. The only transferable asset in the placeholder
+economy is the founder's own inventory.

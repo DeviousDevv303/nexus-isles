@@ -31,7 +31,8 @@ import {
   type WorldConfig,
   type WorldState,
 } from "./state.js";
-import { validateAction } from "./validator.js";
+import { executeSuccession } from "../../lineage/succession.js";
+import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
 
 interface Received {
   seatId: string;
@@ -418,6 +419,7 @@ export class World {
       }
     }
     this.applyReproduction(accepted);
+    this.applySuccessionActs(accepted);
     for (const r of accepted) {
       if (r.action.verb !== "eat") continue;
       const res = this.st.residents[r.seatId];
@@ -489,11 +491,54 @@ export class World {
     }
   }
 
+  /** AA4 stage 1 and maintenance: authorize / replace / revoke, by the living only. */
+  private applySuccessionActs(accepted: Received[]): void {
+    for (const r of accepted) {
+      if (r.action.verb === "authorize_succession") {
+        const instrument = draftInstrument(this.st, r.seatId, r.action.args);
+        if (instrument) this.emit("SUCCESSION_AUTHORIZED", r.seatId, { instrument, seq: r.seq });
+      } else if (r.action.verb === "revoke_succession") {
+        const inst = this.st.residents[r.seatId].instrument;
+        if (inst) this.emit("SUCCESSION_REVOKED", r.seatId, { resident: r.seatId, instrumentId: inst.id, seq: r.seq });
+      }
+    }
+  }
+
   private stepLifecycle(): void {
+    const died: string[] = [];
     for (const id of this.sortedIds(this.st.residents)) {
       const r = this.st.residents[id];
       if (r.alive && r.satiety <= 0) {
         this.emit("DEATH", "engine", { resident: id, cause: "starvation" });
+        died.push(id);
+      }
+    }
+    // AA4 stage 2: after ALL of this tick's deaths, execute each deceased's
+    // in-force instrument against death-tick state. No instrument -> no
+    // succession: the engine never infers an heir. Each transfer is
+    // re-validated and fails closed; what fails stays as salvage.
+    for (const id of died) {
+      const r = this.st.residents[id];
+      const inst = r.instrument;
+      if (!inst) continue;
+      const outcome = executeSuccession(inst, successionContext(this.st));
+      const ok = outcome.executed.some((x) => x.transfer.ref === inventoryRef(id));
+      if (outcome.executed.length > 0) {
+        this.emit("SUCCESSION_EXECUTED", "engine", {
+          deceased: id,
+          successor: inst.successorId,
+          instrumentId: inst.id,
+          inventoryTransferred: ok ? r.inventory : 0,
+          executed: outcome.executed.map((x) => x.transfer),
+          failed: outcome.failed,
+        });
+      } else {
+        this.emit("SUCCESSION_FAILED", "engine", {
+          deceased: id,
+          instrumentId: inst.id,
+          reason: outcome.failed[0]?.reason ?? "instrument names no transfers",
+          salvage: outcome.salvage,
+        });
       }
     }
   }

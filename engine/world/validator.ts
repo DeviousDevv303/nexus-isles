@@ -5,9 +5,61 @@
 // the action itself: never the seat's tier, provider, or submission timing.
 
 import type { Action } from "../../seats/seatProvider.js";
+import {
+  validateAuthorization,
+  type SuccessionContext,
+  type SuccessionInstrument,
+  type Transfer,
+} from "../../lineage/succession.js";
 import type { WorldState } from "./state.js";
 
-export const VERBS = ["gather", "eat", "wait", "fork", "blend"] as const;
+/** The one transferable asset in the placeholder economy. */
+export const inventoryRef = (residentId: string): string => `inventory:${residentId}`;
+
+/** Succession context built from world state — the single source for both stages. */
+export function successionContext(state: WorldState): SuccessionContext {
+  const alive = Object.keys(state.residents).filter((id) => state.residents[id].alive);
+  return {
+    currentTick: state.tick,
+    aliveResidents: new Set(alive),
+    // Ownership is as of now: a dead resident's holdings are no longer theirs to give later.
+    ownership: new Map(Object.keys(state.residents).map((id) => [inventoryRef(id), id])),
+    standingOrders: new Map(),
+    bequeathableKnowledge: new Set(),
+    commandHolders: new Set(),
+  };
+}
+
+/** Build the instrument an authorize_succession action asks for, or null if malformed. */
+export function draftInstrument(
+  state: WorldState,
+  founderId: string,
+  args: Readonly<Record<string, unknown>>,
+): SuccessionInstrument | null {
+  if (typeof args.successor !== "string") return null;
+  const expires = args.expiresTick ?? null;
+  if (expires !== null && !(typeof expires === "number" && Number.isSafeInteger(expires))) return null;
+  let transfers: Transfer[] = [{ kind: "asset", ref: inventoryRef(founderId) }];
+  if (args.transfers !== undefined) {
+    if (!Array.isArray(args.transfers)) return null;
+    transfers = [];
+    for (const t of args.transfers as { kind?: unknown; ref?: unknown }[]) {
+      if (typeof t?.kind !== "string" || typeof t?.ref !== "string") return null;
+      transfers.push({ kind: t.kind as Transfer["kind"], ref: t.ref });
+    }
+  }
+  return {
+    id: `inst-${state.nextInstrumentSeq}`,
+    founderId,
+    successorId: args.successor,
+    transfers,
+    authorizedTick: state.tick,
+    expiresTick: expires as number | null,
+    revoked: false,
+  };
+}
+
+export const VERBS = ["gather", "eat", "wait", "fork", "blend", "authorize_succession", "revoke_succession"] as const;
 
 export type ValidationResult = { ok: true } | { ok: false; reason: string };
 
@@ -66,6 +118,22 @@ export function validateAction(
       if (resident.inventory < 1) return { ok: false, reason: "nothing_to_eat" };
       return { ok: true };
     }
+    case "authorize_succession": {
+      const inst = draftInstrument(state, seatId, action.args);
+      if (!inst) return { ok: false, reason: "malformed_instrument" };
+      // Only what this economy can actually transfer may be named.
+      if (inst.transfers.length === 0) return { ok: false, reason: "malformed_instrument" };
+      if (inst.transfers.some((t) => t.kind !== "asset")) {
+        return { ok: false, reason: "unsupported_transfer" };
+      }
+      // AA4 stage 1, by the lineage module's own rules.
+      if (validateAuthorization(inst, successionContext(state)).length > 0) {
+        return { ok: false, reason: "invalid_instrument" };
+      }
+      return { ok: true };
+    }
+    case "revoke_succession":
+      return resident.instrument ? { ok: true } : { ok: false, reason: "no_instrument" };
     case "fork":
     case "blend": {
       // AA12: reproduction is a costly resident action — never free.

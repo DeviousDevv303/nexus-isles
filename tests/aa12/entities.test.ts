@@ -313,7 +313,7 @@ describe("AA12 dynasty, family — succession integrity", () => {
     const j = rebuildJournal(w);
     j.append({ tick: w.tickNumber, type: "SUCCESSION_EXECUTED", actor: "engine", payload: { deceased: "alpha", successor: "res-1" } });
     j.append({ tick: w.tickNumber, type: "TICK_COMMIT", actor: "engine", payload: {} });
-    expect(() => World.restore(j)).toThrow(/Unknown journal entry type/);
+    expect(() => World.restore(j)).toThrow(/invariant violated|Unknown journal entry type/);
   });
 
   it("genome schema enforces N >= 4 eligible fields (erratum E1)", () => {
