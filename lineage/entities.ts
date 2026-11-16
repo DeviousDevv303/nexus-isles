@@ -34,9 +34,9 @@
 //    their own family until an accepted succession names them successor;
 //    the FIRST such succession moves them into the deceased's family, and
 //    later successions naming the same successor never move them again.
-//  - Heir (successor continuity): a non-founder member of the lineage. The
-//    10-tick threshold itself is constitutional text (AA1 c, Annex B 4),
-//    not a choice made here.
+//  - Successor continuity: two named readings at the bottom of this file
+//    ("succession-v0" and "birth-age-v0"). The 10-tick number is
+//    constitutional text (AA1 c, Annex B 4); how it is applied is not.
 
 import { createHash } from "node:crypto";
 import { canonicalStringify, type JournalEntry } from "../ledger/journal.js";
@@ -240,11 +240,56 @@ export function isExtinct(e: Entities, lineage: string): boolean {
   return l.extinctTick !== null;
 }
 
+// ---- successor continuity: two readings, both PROVISIONAL -------------------
+//
+// AA1 (c): "a successor counts toward continuity only if it has survived at
+// least 10 ticks on its own agency as of the scoring tick". The 10 is the
+// constitution's. WHO is a "successor" and WHEN the 10 ticks start are not
+// spelled out, and the two readings below give different answers. Neither
+// is law until the owner rules; dynasty-score must name which one it used.
+
+export type ContinuityReading = "succession-v0" | "birth-age-v0";
+
 /**
- * Successor-continuity input (AA1 c / Annex B): heirs of the lineage alive
- * at the scoring tick with >= minTicks of continuous own-agency survival.
+ * Reading "succession-v0" (Muse / ChatGPT audit): a successor is a resident
+ * named in an ACCEPTED executed succession whose deceased and successor are
+ * both in this lineage; it counts once it has survived >= minTicks SINCE
+ * THAT SUCCESSION and is alive at the scoring tick.
  */
-export function continuityHeirs(e: Entities, lineage: string, scoringTick: number, minTicks = CONTINUITY_MIN_TICKS): string[] {
+export function continuitySuccessors(
+  e: Entities,
+  lineage: string,
+  scoringTick: number,
+  minTicks = CONTINUITY_MIN_TICKS,
+): string[] {
+  if (!e.lineages[lineage]) throw new Error(`unknown lineage ${lineage}`);
+  const alive = new Set(lineagePopulation(e, lineage, scoringTick));
+  const out = new Set<string>();
+  for (const s of e.successions) {
+    if (
+      e.residents[s.deceased].lineage === lineage &&
+      alive.has(s.successor) &&
+      s.tick <= scoringTick &&
+      scoringTick - s.tick >= minTicks
+    ) {
+      out.add(s.successor);
+    }
+  }
+  return [...out].sort();
+}
+
+/**
+ * Reading "birth-age-v0" (this build's first cut): any non-founder member
+ * of the lineage alive at the scoring tick, >= minTicks SINCE BIRTH. This
+ * repurposes the 10-tick rule as an age test; kept only so the difference
+ * is visible and testable.
+ */
+export function continuityMembersByBirthAge(
+  e: Entities,
+  lineage: string,
+  scoringTick: number,
+  minTicks = CONTINUITY_MIN_TICKS,
+): string[] {
   const l = e.lineages[lineage];
   if (!l) throw new Error(`unknown lineage ${lineage}`);
   return lineagePopulation(e, lineage, scoringTick).filter(
