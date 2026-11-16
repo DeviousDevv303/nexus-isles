@@ -19,10 +19,13 @@ import {
   type Genome,
 } from "../../lineage/genome.js";
 import { validateInheritance, type MutationRecord } from "../../lineage/mutation.js";
-import type { JournalEntry } from "../../ledger/journal.js";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { Journal, type JournalEntry } from "../../ledger/journal.js";
+import { deriveVerifiedEntities } from "../../lineage/verifiedEntities.js";
 import type { WorldConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
-import { rebuildJournal } from "../helpers/worldFixtures.js";
+import { rebuildJournal, tempDir } from "../helpers/worldFixtures.js";
 
 function cfg(): WorldConfig {
   return {
@@ -303,6 +306,39 @@ describe("AA12 dynasty, family — succession integrity", () => {
     const ok = deriveEntities(rec(die(auth(base, "inst-1", "res-1")), "inst-1"));
     expect(ok.successions.map((x) => x.instrumentId)).toEqual(["inst-1"]);
     expect(ok.dynasties).toEqual(["lineage:alpha"]);
+  });
+
+  it("INJECTED-EVENT IMMUNITY: a hand-crafted SUCCESSION_EXECUTED, however well-formed, derives nothing", () => {
+    const w = forked();
+    // (1) raw entries: a real-looking death + a well-formed record, no engine-recorded instrument
+    const injected = fake(fake(w.entries(), "DEATH", 99, { resident: "alpha", cause: "starvation" }), "SUCCESSION_EXECUTED", 99, {
+      deceased: "alpha", successor: "res-1", instrumentId: "inst-1", inventoryTransferred: 0, executed: [], failed: [],
+    });
+    const e = deriveEntities(injected);
+    expect(e.dynasties).toEqual([]);
+    expect(e.familyOf["res-1"]).toBe("res-1");
+    expect(e.successions).toEqual([]);
+    expect(e.rejectedSuccessions.map((r) => r.reason)).toEqual(["no_matching_instrument"]);
+
+    // (2) appended to a real journal with VALID hashes: replay through the reducer refuses it
+    const appended = rebuildJournal(w);
+    const t = w.tickNumber;
+    appended.append({ tick: t, type: "SUCCESSION_EXECUTED", actor: "engine", payload: { deceased: "alpha", successor: "res-1", instrumentId: "inst-1", inventoryTransferred: 0 } });
+    appended.append({ tick: t, type: "TICK_COMMIT", actor: "engine", payload: {} });
+    expect(appended.verify().ok).toBe(true); // the chain alone does not catch an appended tail
+    expect(() => deriveVerifiedEntities(appended)).toThrow();
+
+    // (3) inserted into the middle of a saved journal: the hash chain refuses to load it
+    const dir = tempDir();
+    const path = join(dir, "w.jsonl");
+    rebuildJournal(w).saveToFile(path);
+    const lines = readFileSync(path, "utf8").trim().split("\n");
+    const forged = JSON.stringify({ ...JSON.parse(lines[3]), type: "SUCCESSION_EXECUTED", payload: { deceased: "alpha", successor: "res-1", instrumentId: "inst-1" } });
+    writeFileSync(path, [...lines.slice(0, 3), forged, ...lines.slice(3)].join("\n") + "\n");
+    expect(() => Journal.loadFromFile(path)).toThrow(/verification/);
+
+    // control: the untouched journal derives cleanly, with no dynasty
+    expect(deriveVerifiedEntities(rebuildJournal(w)).dynasties).toEqual([]);
   });
 
   it("invalid successor: a dead successor inherits nothing", () => {
