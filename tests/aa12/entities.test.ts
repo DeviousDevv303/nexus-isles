@@ -213,9 +213,16 @@ describe("AA12 dynasty, family — succession integrity", () => {
     ...base,
     { index: base.length, tick, type, actor: "engine", payload, prevHash: "x", hash: "y" },
   ];
-  /** A journal-level death followed by a succession record at the same tick. */
-  const dieAndSucceed = (base: readonly JournalEntry[], deceased: string, successor: unknown, tick = 99) =>
-    fake(fake(base, "DEATH", tick, { resident: deceased, cause: "test" }), "SUCCESSION_EXECUTED", tick, { deceased, successor });
+  /** Authorized while alive (tick - 1), then a death and its succession record at `tick`. */
+  const dieAndSucceed = (base: readonly JournalEntry[], deceased: string, successor: unknown, tick = 99) => {
+    const id = `inst-test-${deceased}-${tick}`;
+    const authorized = fake(base, "SUCCESSION_AUTHORIZED", tick - 1, {
+      instrument: { id, founderId: deceased, successorId: successor },
+    });
+    return fake(fake(authorized, "DEATH", tick, { resident: deceased, cause: "test" }), "SUCCESSION_EXECUTED", tick, {
+      deceased, successor, instrumentId: id,
+    });
+  };
   const succeedOnly = (base: readonly JournalEntry[], deceased: unknown, successor: unknown, tick = 99) =>
     fake(base, "SUCCESSION_EXECUTED", tick, { deceased, successor });
   /** alpha has forked res-1 (lineage:alpha). */
@@ -268,6 +275,34 @@ describe("AA12 dynasty, family — succession integrity", () => {
     for (const bad of [succeedOnly(base, "alpha", undefined), dieAndSucceed(base, "alpha", "alpha"), late]) {
       expect(deriveEntities(bad).dynasties).toEqual([]);
     }
+  });
+
+  it("a correctly SHAPED record with no authorized instrument behind it is rejected", () => {
+    const base = forked().entries();
+    const died = fake(base, "DEATH", 99, { resident: "alpha" });
+    const rec = (b: JournalEntry[], instrumentId?: string) =>
+      fake(b, "SUCCESSION_EXECUTED", 99, { deceased: "alpha", successor: "res-1", ...(instrumentId ? { instrumentId } : {}) });
+    const auth = (b: readonly JournalEntry[], id: string, successorId: string, tick = 50) =>
+      fake(b, "SUCCESSION_AUTHORIZED", tick, { instrument: { id, founderId: "alpha", successorId } });
+    const die = (b: JournalEntry[]) => fake(b, "DEATH", 99, { resident: "alpha" });
+    const cases: JournalEntry[][] = [
+      rec(died), // no instrument ever authorized
+      rec(died, "inst-9"), // names an instrument that does not exist
+      rec(die(auth(base, "inst-1", "res-1")), "inst-2"), // wrong instrument id
+      rec(die(auth(base, "inst-1", "bravo")), "inst-1"), // instrument names someone else
+      rec(die(fake(auth(base, "inst-1", "res-1"), "SUCCESSION_REVOKED", 60, { resident: "alpha", instrumentId: "inst-1" })), "inst-1"), // revoked
+      rec(auth(died, "inst-1", "res-1", 99), "inst-1"), // "authorized" after death: the dead cannot authorize
+    ];
+    for (const c of cases) {
+      const e = deriveEntities(c);
+      expect(e.rejectedSuccessions.map((r) => r.reason)).toEqual(["no_matching_instrument"]);
+      expect(e.dynasties).toEqual([]);
+      expect(e.familyOf["res-1"]).toBe("res-1");
+    }
+    // control: the same shape WITH its instrument is accepted and records the instrument id
+    const ok = deriveEntities(rec(die(auth(base, "inst-1", "res-1")), "inst-1"));
+    expect(ok.successions.map((x) => x.instrumentId)).toEqual(["inst-1"]);
+    expect(ok.dynasties).toEqual(["lineage:alpha"]);
   });
 
   it("invalid successor: a dead successor inherits nothing", () => {
