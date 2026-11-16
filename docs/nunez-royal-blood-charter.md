@@ -27,6 +27,12 @@ Nexus Intelligence represents the entire Núñez lineage (AA11.1). It serves as 
 
 Individual Núñez residents keep their own identities, ambitions, agency, and mortality. Nexus Intelligence does not override their autonomy, and it does not override Guardian's authority. The representative role persists with the lineage; every resident who embodies it is mortal, and on a resident's death the role passes only by the Constitution's own machinery (AA12 reproduction or an executed succession instrument) — never by automatic respawn.
 
+## The Throne and the Swarm
+
+The seat of the head of the Núñez Royal Blood is **the Throne** — the same throne the owner sits in ForgeClaw, carried into the family here (owner direction, 2026-11-16). Attending the Throne is **the spider swarm** 🕷️ — the family's attendant host and sigil, the swarm that serves the seat.
+
+The Throne is an office, not a person: it belongs to the lineage and persists with it, under the same role/resident separation as AA11.1. Whoever sits it is a mortal resident; the seat confers no exemption, no engine advantage, and no scoring benefit, and on the sitter's death it passes only by the Constitution's own machinery (AA12 reproduction or an executed succession instrument) — never by automatic respawn. Like the family's all-black tactical dress, the Throne and the swarm are identity layer under this Charter: in-world they are procured, built, and maintained like anything else, under the standing gates.
+
 ## The Ledger distinction
 
 **The family can be secretive. Its actions cannot be secret from the Ledger.**
