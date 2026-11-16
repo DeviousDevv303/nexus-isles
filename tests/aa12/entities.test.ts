@@ -20,13 +20,13 @@ import { validateInheritance, type MutationRecord } from "../../lineage/mutation
 import type { JournalEntry } from "../../ledger/journal.js";
 import type { WorldConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
-import { rebuildJournal } from "../helpers/worldFixtures.js";
+import { TEST_BACKEND, rebuildJournal } from "../helpers/worldFixtures.js";
 
 function cfg(): WorldConfig {
   return {
     nodes: [{ id: "grove", capacity: 200, amount: 200, regen: 20 }],
     residents: ["alpha", "bravo", "charlie"].map((id) => ({
-      id, satiety: 8, maxSatiety: 10, actionsPerTick: 3, genome: standardGenesisGenome(),
+      id, satiety: 8, maxSatiety: 10, actionsPerTick: 3, genome: standardGenesisGenome(), backend: TEST_BACKEND,
     })),
     rules: { satietyDecay: 1, maxGatherPerAction: 6, blightPercent: 0, blightMax: 0 },
   };
@@ -48,6 +48,7 @@ function blendedWorld(seed = 1, order = ["alpha", "bravo"]): World {
 }
 /** Keep one seat fed for n ticks; everyone else idles (and starves). */
 function sustain(w: World, seat: string, n: number): void {
+  w.bindBackend(seat, TEST_BACKEND); // a newborn needs a brain bound before it can act
   for (let i = 0; i < n; i++) {
     gather(w, seat, 3);
     w.submit(seat, { verb: "eat", args: { amount: 3 } });
@@ -166,6 +167,8 @@ describe("AA12 blend rule — end to end", () => {
     w.tick();
     w.submit("charlie", { verb: "fork", args: {} });
     w.tick(); // res-2, lineage:charlie
+    w.bindBackend("res-1", TEST_BACKEND);
+    w.bindBackend("res-2", TEST_BACKEND);
     for (let i = 0; i < 11; i++) {
       for (const seat of ["alpha", "bravo", "charlie", "res-1", "res-2"]) {
         gather(w, seat, 3);

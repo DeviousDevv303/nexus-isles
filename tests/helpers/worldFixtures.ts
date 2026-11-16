@@ -9,6 +9,8 @@ export function tempDir(): string {
   return mkdtempSync(join(tmpdir(), "nexus-isles-"));
 }
 
+export const TEST_BACKEND = { providerId: "test-provider", version: "test-v1" };
+
 export const SEATS = ["alpha", "bravo", "charlie", "delta"];
 
 export function baseConfig(overrides: Partial<WorldConfig> = {}): WorldConfig {
@@ -17,7 +19,7 @@ export function baseConfig(overrides: Partial<WorldConfig> = {}): WorldConfig {
       { id: "grove", capacity: 12, amount: 12, regen: 2 },
       { id: "shore", capacity: 8, amount: 8, regen: 1 },
     ],
-    residents: SEATS.map((id) => ({ id, satiety: 8, maxSatiety: 10, actionsPerTick: 2 })),
+    residents: SEATS.map((id) => ({ id, satiety: 8, maxSatiety: 10, actionsPerTick: 2, backend: TEST_BACKEND })),
     rules: { satietyDecay: 1, maxGatherPerAction: 6, blightPercent: 25, blightMax: 3 },
     ...overrides,
   };

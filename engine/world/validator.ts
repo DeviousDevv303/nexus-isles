@@ -30,6 +30,9 @@ export function validateAction(
   const resident = state.residents[seatId];
   if (!resident) return { ok: false, reason: "unknown_seat" };
   if (!resident.alive) return { ok: false, reason: "resident_dead" };
+  // AT-20: no action without an attributable backend — there is no path
+  // by which an action reaches the journal unstamped.
+  if (!resident.backend) return { ok: false, reason: "no_backend_bound" };
   if (indexWithinSeat >= resident.actionsPerTick) {
     return { ok: false, reason: "budget_exceeded" };
   }

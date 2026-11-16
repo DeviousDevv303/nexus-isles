@@ -22,10 +22,12 @@ import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
+  isBackendRef,
   lineageIdFor,
   normalizeConfig,
   reduce,
   validateConfig,
+  type BackendRef,
   type WorldConfig,
   type WorldState,
 } from "./state.js";
@@ -59,6 +61,7 @@ function effortOf(action: Action): number {
 
 export class World {
   private pending = new Map<string, Action[]>();
+  private pendingBinds = new Map<string, BackendRef>();
 
   private constructor(
     private readonly journal: Journal,
@@ -187,9 +190,40 @@ export class World {
     this.pending.set(seatId, list);
   }
 
+  /**
+   * Bind (or swap) the backend acting through a seat. Takes effect at the
+   * next tick boundary as a journaled SEAT_BACKEND_BOUND event, before any
+   * action of that tick is validated — so every action is stamped with the
+   * backend that was bound when it resolved. The last bind queued for a
+   * seat before a tick wins. The resident's identity, memory, genome and
+   * history are untouched by a swap.
+   */
+  bindBackend(seatId: string, backend: BackendRef): void {
+    if (!isBackendRef(backend)) {
+      throw new Error("backend needs non-empty providerId and version");
+    }
+    this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
+  }
+
+  private stepBindBackends(): void {
+    for (const seatId of [...this.pendingBinds.keys()].sort()) {
+      const backend = this.pendingBinds.get(seatId) as BackendRef;
+      const r = this.st.residents[seatId];
+      if (!r || !r.alive) {
+        this.emit("BACKEND_BIND_REJECTED", "engine", {
+          seat: seatId, backend, reason: r ? "resident_dead" : "unknown_seat",
+        });
+      } else if (r.backend?.providerId !== backend.providerId || r.backend?.version !== backend.version) {
+        this.emit("SEAT_BACKEND_BOUND", "engine", { seat: seatId, backend, previous: r.backend });
+      }
+    }
+    this.pendingBinds = new Map();
+  }
+
   tick(): void {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
+    this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3
     this.stepNeeds(); //                                                       4
@@ -289,7 +323,9 @@ export class World {
     const committed = new Map<string, number>();
     for (const r of received) {
       const res = validateAction(this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0);
-      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args };
+      // AT-20: every action record carries the backend that produced it.
+      const backend = this.st.residents[r.seatId]?.backend ?? null;
+      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend };
       if (res.ok) {
         if (r.action.verb === "gather") {
           committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);

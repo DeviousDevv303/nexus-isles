@@ -14,6 +14,12 @@ export interface SeatSpec {
   tier: 0 | 1 | 2;
   /** The actual underlying model, named truthfully (provider-truth rule). */
   providerId: string;
+  /**
+   * The exact backend version acting through this seat (checkpoint / model
+   * build). Journaled on every action (AT-20). Optional in the type so
+   * existing specs still compile; a seat with no bound backend cannot act.
+   */
+  backendVersion?: string;
   /** Per-tick budgets. Denominated in tokens and actions — never dollars. */
   budget: { tokensPerTick: number; actionsPerTick: number };
 }

@@ -60,6 +60,12 @@ export class NexusEmbeddedSeat implements SeatProvider {
         `spec budget (${spec.budget.actionsPerTick} actions/tick) exceeds the world's limit for ${spec.seatId} (${resident.actionsPerTick}) — the validator's budget governs`,
       );
     }
+    // AT-20: connecting binds this seat's backend identity + version in the
+    // world, journaled at the next tick boundary. No version, no actions.
+    if (!spec.backendVersion) {
+      throw new Error("seat spec must carry backendVersion (AT-20: every action is attributable)");
+    }
+    this.world.bindBackend(spec.seatId, { providerId: spec.providerId, version: spec.backendVersion });
     return { spec };
   }
 

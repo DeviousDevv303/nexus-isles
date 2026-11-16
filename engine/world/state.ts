@@ -39,8 +39,23 @@ export interface ResidentConfig {
   actionsPerTick: number;
   /** AA8 initiative (integer >= 0). Defaults to 0; genomes feed it later. */
   initiative?: number;
+  /** The backend acting through this seat at genesis (AT-20). */
+  backend?: BackendRef;
   /** Trait layer only. Lineage identity is a journal fact, never genome content. */
   genome?: Genome;
+}
+/** Which brain acts through a seat: provider identity + exact version. */
+export interface BackendRef {
+  providerId: string;
+  version: string;
+}
+export function isBackendRef(v: unknown): v is BackendRef {
+  const b = v as BackendRef | null;
+  return (
+    typeof b === "object" && b !== null &&
+    typeof b.providerId === "string" && b.providerId.length > 0 &&
+    typeof b.version === "string" && b.version.length > 0
+  );
 }
 export interface Rules {
   satietyDecay: number;
@@ -81,6 +96,8 @@ export interface ResidentState {
   lineage: string;
   parents: string[];
   genome: Genome | null;
+  /** Null until a backend is bound; an unbound seat cannot act. */
+  backend: BackendRef | null;
 }
 export interface WorldState {
   seed: number;
@@ -144,6 +161,9 @@ export function validateConfig(config: WorldConfig): void {
     }
     if (r.satiety > r.maxSatiety) throw new Error(`resident ${r.id}: satiety > maxSatiety`);
     if (/^res-\d+$/.test(r.id)) throw new Error(`resident id ${r.id} is reserved for engine-born residents`);
+    if (r.backend !== undefined && !isBackendRef(r.backend)) {
+      throw new Error(`resident ${r.id}: backend needs non-empty providerId and version`);
+    }
     if (r.genome) {
       const issues = validateGenome(r.genome);
       if (issues.length > 0) throw new Error(`resident ${r.id}: invalid genome: ${issues.join("; ")}`);
@@ -193,6 +213,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         lineage: lineageIdFor(r.id), // every genesis resident founds a lineage
         parents: [],
         genome: r.genome ? structuredClone(r.genome) : null,
+        backend: r.backend ? { providerId: r.backend.providerId, version: r.backend.version } : null,
       };
     }
     return {
@@ -303,8 +324,22 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         lineage,
         parents: [...parents],
         genome: structuredClone(p.genome as Genome),
+        backend: null, // a new resident: a brain must be bound before it can act
       };
       next.nextResidentSeq = state.nextResidentSeq + 1;
+      return next;
+    }
+    case "SEAT_BACKEND_BOUND": {
+      // AA11: a backend change is a journaled engine event. Identity, memory,
+      // genome and history are untouched — the brain is replaceable, the
+      // life is not. Only the backend reference changes.
+      const r = next.residents[str(p, "seat")];
+      const to = p.backend;
+      if (!r || !r.alive || !isBackendRef(to)) throw new Error("SEAT_BACKEND_BOUND invariant violated");
+      if (canonicalStringify(p.previous ?? null) !== canonicalStringify(r.backend)) {
+        throw new Error("SEAT_BACKEND_BOUND invariant violated (previous mismatch)");
+      }
+      r.backend = { providerId: to.providerId, version: to.version };
       return next;
     }
     case "DEATH": {
@@ -324,6 +359,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     // Audit-only entries: recorded for the ledger, no state effect.
     case "OBSERVATION_DELIVERED":
     case "CONTENTION_RESOLVED":
+    case "BACKEND_BIND_REJECTED":
     case "REPRODUCTION_FAILED":
     case "SUCCESSION_EXECUTED": // schema reserved; see lineage/entities.ts
     case "ACTION_ACCEPTED":
