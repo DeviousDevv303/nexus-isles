@@ -155,19 +155,22 @@ export class Journal {
   }
 
   /**
-   * Append this journal's not-yet-written tail to a JSONL file, one entry
-   * per write, each flushed to disk before the next (per-entry flush). A
-   * crash can therefore tear at most the final line.
+   * Append this journal's not-yet-written tail to a JSONL file as ONE
+   * buffered write, then flush (Muse's Ruling 2, #235 6950678244: a tick's
+   * entries are composed in memory and appended as one write at commit).
+   * Every entry is still its own newline-terminated line, and torn-tail
+   * recovery handles a torn final line. Residual risk, stated plainly: a
+   * single write is not atomic on every filesystem; if a crash persists
+   * only a prefix of it, restore still refuses loudly and names the
+   * uncommitted entries — nothing is ever dropped.
    */
   saveToFile(path: string, fromIndex = 0): void {
     const tail = this.chain.slice(fromIndex);
     if (tail.length === 0) return;
     const fd = openSync(path, "a");
     try {
-      for (const e of tail) {
-        writeSync(fd, JSON.stringify(e) + "\n", null, "utf8");
-        fsyncSync(fd);
-      }
+      writeSync(fd, tail.map((e) => JSON.stringify(e) + "\n").join(""), null, "utf8");
+      fsyncSync(fd);
     } finally {
       closeSync(fd);
     }

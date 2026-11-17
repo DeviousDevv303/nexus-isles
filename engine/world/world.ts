@@ -21,6 +21,7 @@ import { resolveContention, type Claim, type ClaimOutcome } from "./contention.j
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
 import { priorityOrder } from "./contention.js";
+import { appendWal, readWal, rewriteWal, walPathFor, type WalRecord } from "./wal.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
@@ -72,6 +73,8 @@ export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
+  /** Next write-ahead id for a console submission (arrival order). */
+  private walSeq = 1;
   private pendingRejections: Record<string, unknown>[] = [];
   private pendingRecovery: Record<string, unknown> | null = null;
   private pendingDriverRejections: Record<string, unknown>[] = [];
@@ -88,6 +91,9 @@ export class World {
     validateConfig(config);
     if (opts.persistPath && existsSync(opts.persistPath) && statSync(opts.persistPath).size > 0) {
       throw new Error(`Refusing to create a world over existing journal ${opts.persistPath}`);
+    }
+    if (opts.persistPath && existsSync(walPathFor(opts.persistPath)) && statSync(walPathFor(opts.persistPath)).size > 0) {
+      throw new Error(`Refusing to create a world over an existing write-ahead log ${walPathFor(opts.persistPath)}`);
     }
     const journal = new Journal();
     const genesis = journal.append({
@@ -165,6 +171,7 @@ export class World {
       }
     }
     const world = World.restore(journal, { persistPath: path, snapshot });
+    world.recoverWal();
     const report = journal.loadReport;
     if (report.tornTail || report.unterminatedFinalEntry) {
       world.pendingRecovery = {
@@ -265,9 +272,13 @@ export class World {
    * Queued events, like queued actions, are lost on restart.
    */
   submitConsoleEvent(submission: ConsoleSubmission): void {
+    const walId = `w${this.walSeq++}`;
     try {
-      this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+      const payload = { ...validateConsoleSubmission(submission, this.st.tick), walId };
+      this.writeAhead({ walId, kind: "console", payload });
+      this.pendingConsole.push(payload);
     } catch (err) {
+      if (!(err instanceof ConsoleRejection) && (err as { walFailure?: boolean }).walFailure) throw err;
       // Owner ruling 2026-11-17 (#235, 6937254884, item 3): a refused
       // submission is still an occurrence. It is journaled as
       // OWNER_SUBMISSION_REJECTED at the next tick boundary — reason,
@@ -280,13 +291,16 @@ export class World {
       } catch {
         given = null;
       }
-      this.pendingRejections.push({
+      const rejection = {
         status: "rejected",
         code,
         reason: err instanceof Error ? err.message : String(err),
         submittedAtTick: this.st.tick,
         submission: given,
-      });
+        walId,
+      };
+      this.writeAhead({ walId, kind: "console-rejection", payload: rejection });
+      this.pendingRejections.push(rejection);
       throw err;
     }
   }
@@ -735,6 +749,68 @@ export class World {
     if (this.persistPath) {
       this.journal.saveToFile(this.persistPath, this.persisted);
       this.persisted = this.journal.length;
+      this.compactWal();
     }
+  }
+
+  /** Write a queued console submission ahead, durably, before it is queued. */
+  private writeAhead(record: WalRecord): void {
+    if (!this.persistPath) return;
+    try {
+      appendWal(walPathFor(this.persistPath), record);
+    } catch (cause) {
+      const err = new Error(`could not write the console submission ahead: ${String(cause)}`) as Error & { walFailure: boolean };
+      err.walFailure = true;
+      throw err;
+    }
+  }
+
+  /** After a tick lands, the WAL holds exactly what is still waiting. */
+  private compactWal(): void {
+    if (!this.persistPath) return;
+    const waiting: WalRecord[] = [
+      ...this.pendingRejections.map((payload) => ({ walId: payload.walId as string, kind: "console-rejection" as const, payload })),
+      ...this.pendingConsole.map((payload) => ({ walId: payload.walId as string, kind: "console" as const, payload })),
+    ].sort((x, y) => Number((x.walId as string).slice(1)) - Number((y.walId as string).slice(1)));
+    rewriteWal(walPathFor(this.persistPath), waiting);
+  }
+
+  /**
+   * Restart: re-queue every WAL record that has not landed in the journal.
+   * A record that has landed (its walId is in the journal) is never landed
+   * twice. A record that can no longer land where it says fails loudly.
+   */
+  private recoverWal(): number {
+    if (!this.persistPath) return 0;
+    const { records } = readWal(walPathFor(this.persistPath), { repair: true });
+    const landed = new Set<string>();
+    let maxSeq = 0;
+    for (const e of this.journal.entries()) {
+      const id = e.payload.walId;
+      if ((e.type === "EXTERNAL_EVENT" || e.type === "OWNER_SUBMISSION_REJECTED") && typeof id === "string") {
+        landed.add(id);
+        maxSeq = Math.max(maxSeq, Number(id.slice(1)) || 0);
+      }
+    }
+    let requeued = 0;
+    for (const r of records) {
+      maxSeq = Math.max(maxSeq, Number(r.walId.slice(1)) || 0);
+      if (landed.has(r.walId)) continue;
+      if (r.kind === "console") {
+        if (typeof r.payload.affectsTick !== "number" || r.payload.affectsTick <= this.st.tick) {
+          throw new Error(`WAL record ${r.walId} targets tick ${String(r.payload.affectsTick)}, already resolved, and never landed`);
+        }
+        this.pendingConsole.push(r.payload);
+      } else {
+        if (r.payload.submittedAtTick !== this.st.tick) {
+          throw new Error(`WAL refusal ${r.walId} was submitted at tick ${String(r.payload.submittedAtTick)} but never landed`);
+        }
+        this.pendingRejections.push(r.payload);
+      }
+      requeued++;
+    }
+    this.walSeq = maxSeq + 1;
+    this.compactWal();
+    return requeued;
   }
 }
