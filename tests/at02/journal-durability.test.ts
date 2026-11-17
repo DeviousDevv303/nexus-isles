@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Journal } from "../../ledger/journal.js";
 import { World } from "../../engine/world/world.js";
-import { baseConfig, drive, tempDir } from "../helpers/worldFixtures.js";
+import { baseConfig, drive, restartFrom, tempDir } from "../helpers/worldFixtures.js";
 
 function persisted(ticks = 5) {
   const path = join(tempDir(), "w.jsonl");
@@ -26,7 +26,7 @@ describe("journal durability", () => {
     const intact = statSync(path).size;
     const FRAGMENT = '{"index":999,"tick":6,"type":"TICK_ST';
     appendFileSync(path, FRAGMENT); // crash mid-append: no newline, not JSON
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     expect(r.headHash).toBe(w.headHash); // every complete entry kept
     expect(r.state).toEqual(w.state);
     expect(r.lastRecovery).toEqual({
@@ -38,14 +38,14 @@ describe("journal durability", () => {
     const rec = r.entries().filter((e) => e.type === "JOURNAL_TAIL_RECOVERED");
     expect(rec).toHaveLength(1);
     expect(rec[0].tick).toBe(6);
-    expect(World.restoreFromFile(path).headHash).toBe(r.headHash); // reloads with nothing torn
+    expect(restartFrom(path).headHash).toBe(r.headHash); // reloads with nothing torn
   });
 
   it("ACCEPTANCE (fail): a torn COMPLETE-looking line fails loudly — never discarded", () => {
     const { path } = persisted();
     // newline-terminated, so it is a complete line — but its content is cut off
     appendFileSync(path, '{"index":999,"tick":6,"type":"TICK_ST\n');
-    expect(() => World.restoreFromFile(path)).toThrow(/complete but unparseable/);
+    expect(() => restartFrom(path)).toThrow(/complete but unparseable/);
     expect(lines(path).at(-2)).toContain("TICK_ST"); // and nothing was truncated
   });
 
@@ -56,7 +56,7 @@ describe("journal durability", () => {
     tampered.payload = { ...tampered.payload, forged: true };
     ls[4] = JSON.stringify(tampered);
     writeFileSync(path, ls.join("\n"));
-    expect(() => World.restoreFromFile(path)).toThrow(/verification/);
+    expect(() => restartFrom(path)).toThrow(/verification/);
     // last line too
     const p2 = persisted().path;
     const l2 = lines(p2);
@@ -64,7 +64,7 @@ describe("journal durability", () => {
     last.payload = { ...last.payload, stateHash: "0".repeat(64) };
     l2[l2.length - 2] = JSON.stringify(last);
     writeFileSync(p2, l2.join("\n"));
-    expect(() => World.restoreFromFile(p2)).toThrow(/verification/);
+    expect(() => restartFrom(p2)).toThrow(/verification/);
   });
 
   it("a blank complete line in the middle is corruption, not a torn write", () => {
@@ -78,12 +78,12 @@ describe("journal durability", () => {
   it("a final entry that is whole but lost only its newline is KEPT, terminated, and reported", () => {
     const { path, w } = persisted();
     writeFileSync(path, readFileSync(path, "utf8").replace(/\n$/, "")); // strip the last newline only
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     expect(r.headHash).toBe(w.headHash); // the final entry (a TICK_COMMIT) was not dropped
     expect(r.lastRecovery).toMatchObject({ tornTail: null, unterminatedFinalEntry: true });
     expect(readFileSync(path, "utf8").endsWith("\n")).toBe(true);
     drive(r, 1);
-    expect(World.restoreFromFile(path).headHash).toBe(r.headHash);
+    expect(restartFrom(path).headHash).toBe(r.headHash);
   });
 
   it("a crash mid-tick (complete lines, no commit) fails loudly and names what is uncommitted — nothing dropped", () => {
@@ -92,7 +92,7 @@ describe("journal durability", () => {
     drive(extra, 4); // the same world one tick further, in memory
     const tick4 = extra.entries().filter((e) => e.tick === 4 && e.type !== "TICK_COMMIT");
     appendFileSync(path, tick4.slice(0, 3).map((e) => JSON.stringify(e) + "\n").join("") + '{"index":');
-    expect(() => World.restoreFromFile(path)).toThrow(/entries \d+\.\.\d+ \(tick 4\) are uncommitted\. Nothing was dropped\./);
+    expect(() => restartFrom(path)).toThrow(/entries \d+\.\.\d+ \(tick 4\) are uncommitted\. Nothing was dropped\./);
     // the torn fragment was removed; the three complete tick-4 lines were kept
     const after = readFileSync(path, "utf8");
     expect(after.endsWith("\n")).toBe(true);
@@ -111,7 +111,7 @@ describe("journal durability", () => {
   it("a clean file reports nothing and changes nothing", () => {
     const { path } = persisted();
     const before = readFileSync(path, "utf8");
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     expect(r.lastRecovery).toBeNull();
     expect(readFileSync(path, "utf8")).toBe(before);
     drive(r, 1);

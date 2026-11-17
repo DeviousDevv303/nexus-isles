@@ -24,7 +24,7 @@ import type { ResidentConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
 import { deriveReport } from "../../observer/report.js";
 import { deriveDynastyScore } from "../../observer/dynastyScore.js";
-import { TEST_BACKEND, baseConfig, drive, rebuildJournal, tempDir } from "../helpers/worldFixtures.js";
+import { TEST_BACKEND, baseConfig, drive, rebuildJournal, restartFrom, tempDir } from "../helpers/worldFixtures.js";
 
 const res = (id: string, position: string, o: Partial<ResidentConfig> = {}): ResidentConfig => ({
   id, position, satiety: 9, maxSatiety: 10, actionsPerTick: 2, backend: TEST_BACKEND, ...o,
@@ -128,7 +128,7 @@ describe("AT-18 (v) journal replay reproduces displayed state", () => {
     const path = join(tempDir(), "w.jsonl");
     const live = World.create(424242, baseConfig(), { persistPath: path });
     drive(live, 20);
-    const restored = World.restoreFromFile(path);
+    const restored = restartFrom(path);
     expect(emission(restored)).toBe(emission(live));
     expect(emission(World.restore(Journal.loadFromFile(path)))).toBe(emission(live));
   });
