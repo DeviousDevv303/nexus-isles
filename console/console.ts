@@ -36,10 +36,19 @@ export interface ConsoleSubmission {
   affectsTick: number;
 }
 
-export function submitConsoleEvent(
-  journal: Journal,
+/** Highest tick the world core has committed (TICK_COMMIT), or -1 for an empty journal. */
+export function lastResolvedTick(entries: readonly { type: string; tick: number }[]): number {
+  return entries.filter((e) => e.type === "TICK_COMMIT").reduce((max, e) => Math.max(max, e.tick), -1);
+}
+
+/**
+ * Every console law except where the event is written. Throws on any
+ * violation; returns the payload to journal verbatim.
+ */
+export function validateConsoleSubmission(
   submission: ConsoleSubmission,
-): number {
+  lastResolved: number,
+): Record<string, unknown> {
   if (submission.consoleClass === "C0") {
     throw new Error("C0 is a query — read-only, never an intervention event");
   }
@@ -57,30 +66,37 @@ export function submitConsoleEvent(
       throw new Error("C3 seat operations require a typed reason");
     }
   }
-  // A tick is resolved when the world core commits it: the core's journal
-  // vocabulary marks resolution with TICK_COMMIT (there is no TICK_RESOLVED
-  // entry in a real journal — that name belonged to the dry-run fixture's
-  // dialect, and reading for it left this guard inert against real worlds).
-  const lastResolved = journal
-    .entries()
-    .filter((e) => e.type === "TICK_COMMIT")
-    .reduce((max, e) => Math.max(max, e.tick), -1);
-  if (submission.affectsTick <= lastResolved) {
+  if (!Number.isSafeInteger(submission.affectsTick) || submission.affectsTick <= lastResolved) {
     throw new Error(
       `tick ${submission.affectsTick} already resolved — console events land before the tick they affect`,
     );
   }
+  return {
+    consoleClass: submission.consoleClass,
+    intent: submission.intent,
+    diff: submission.diff,
+    verbatim: submission.verbatim,
+    reason: submission.reason ?? null,
+    affectsTick: submission.affectsTick,
+  };
+}
+
+/**
+ * Journal-level path: append straight to a bare journal (fixtures, tests).
+ * For a running world use World.submitConsoleEvent, which journals the
+ * event inside the tick it affects so the world's journal stays restorable.
+ */
+export function submitConsoleEvent(
+  journal: Journal,
+  submission: ConsoleSubmission,
+): number {
+  // A tick is resolved when the world core commits it (TICK_COMMIT).
+  const payload = validateConsoleSubmission(submission, lastResolvedTick(journal.entries()));
   const entry = journal.append({
     tick: submission.affectsTick,
     actor: "owner-console",
     type: "EXTERNAL_EVENT",
-    payload: {
-      consoleClass: submission.consoleClass,
-      intent: submission.intent,
-      diff: submission.diff,
-      verbatim: submission.verbatim,
-      reason: submission.reason ?? null,
-    },
+    payload,
   });
   return entry.index;
 }

@@ -36,6 +36,7 @@ import {
   type WorldState,
 } from "./state.js";
 import { executeSuccession } from "../../lineage/succession.js";
+import { validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
 import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
 
 interface Received {
@@ -72,6 +73,7 @@ function effortOf(action: Action): number {
 export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
+  private pendingConsole: Record<string, unknown>[] = [];
   private pendingEpochs: { epoch: string; op: "open" | "close" }[] = [];
 
   private constructor(
@@ -217,6 +219,26 @@ export class World {
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }
 
+  /**
+   * AA9: queue an owner-console intervention against a running world. All
+   * console laws are checked now (draft, rollback, C3 double-confirm, and
+   * that the target tick has not resolved). The event is journaled VERBATIM
+   * at the start of the tick it affects — after TICK_START, before anything
+   * in that tick resolves — so the journal always records it before its
+   * tick and always ends at a TICK_COMMIT. Console classes have no
+   * executable effect in the engine yet: the entry is the record only.
+   * Queued events, like queued actions, are lost on restart.
+   */
+  submitConsoleEvent(submission: ConsoleSubmission): void {
+    this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+  }
+
+  private stepConsoleEvents(): void {
+    const due = this.pendingConsole.filter((p) => p.affectsTick === this.st.tick);
+    this.pendingConsole = this.pendingConsole.filter((p) => p.affectsTick !== this.st.tick);
+    for (const payload of due) this.emit("EXTERNAL_EVENT", "owner-console", payload);
+  }
+
   private stepBindBackends(): void {
     for (const seatId of [...this.pendingBinds.keys()].sort()) {
       const backend = this.pendingBinds.get(seatId) as BackendRef;
@@ -235,6 +257,7 @@ export class World {
   tick(): void {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
+    this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
     this.stepEpochs(); // dynasty-score epochs open/close at the tick boundary
     this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2

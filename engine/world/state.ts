@@ -467,6 +467,15 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
+    case "EXTERNAL_EVENT": {
+      // AA9: an owner-console intervention, recorded verbatim. No console
+      // class has an executable effect yet, so this is audit-only. It must
+      // sit inside the tick it names, which the world guarantees.
+      if (p.affectsTick !== entry.tick || entry.tick !== state.tick) {
+        throw new Error("EXTERNAL_EVENT invariant violated (journaled outside the tick it affects)");
+      }
+      return state;
+    }
     case "SEAT_BACKEND_BOUND": {
       // AA11: a backend change is a journaled engine event. Identity, memory,
       // genome and history are untouched — the brain is replaceable, the
