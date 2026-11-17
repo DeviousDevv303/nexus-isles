@@ -3,6 +3,11 @@
 // resources are conserved between node stock, inventories, and meals.
 
 import { describe, expect, it } from "vitest";
+
+// Heavy simulation test: well under 1s on an idle machine, but observed
+// past vitest's 5s default on a loaded shared-CPU VM (#235, 6931663589).
+// The raised budget is explicit here rather than global.
+const HEAVY_TIMEOUT_MS = 30_000;
 import { World } from "../../engine/world/world.js";
 import { baseConfig, drive } from "../helpers/worldFixtures.js";
 
@@ -70,7 +75,7 @@ describe("AT-05 scarcity foundations", () => {
       const held = Object.values(s.residents).reduce((a, r) => a + r.inventory, 0);
       expect(gathered).toBe(held + eaten);
     }
-  });
+  }, HEAVY_TIMEOUT_MS);
 
   it("the dead cannot act", () => {
     const cfg = baseConfig();
