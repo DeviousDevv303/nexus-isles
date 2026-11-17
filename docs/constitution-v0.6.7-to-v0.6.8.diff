@@ -1,22 +1,23 @@
 diff --git a/docs/constitution-v0.6.7.txt b/docs/constitution-v0.6.8.txt
-index 72cd6e4..a19299c 100644
+index 72cd6e4..fafb72c 100644
 --- a/docs/constitution-v0.6.7.txt
 +++ b/docs/constitution-v0.6.8.txt
-@@ -1,5 +1,12 @@
+@@ -1,5 +1,13 @@
 -NEXUS ISLES — Consolidated Founding Constitution v0.6.7
-+⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158⟧
++⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158; owner decisions 6955334277⟧
 +NEXUS ISLES — Consolidated Founding Constitution v0.6.8
  (freeze candidate, audit-precise)
 +v0.6.8 prepared 2026-11-17 by the repo lane (Claude). It folds the nine owner-ratified rulings of
 +package v1.3 (#235 6954630158; verbatim in Section XV), ratified Erratum E6 with amendment F-01, and
-+the four v0.6.7 audit items (#235 6930329180). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
++the four v0.6.7 audit items (#235 6930329180), and the owner decisions of #235 6955334277 (F-11 election
++(a); Erratum E7). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
 +naming its authority; Section XIII lists every hunk. Text without a TRACE line is v0.6.7 unchanged.
 +Ratification authorizes implementation only; this text is not frozen until the owner’s freeze word
 +against its hash, and freezing it does not authorize deployment or launch.
  Prepared 2026-11-16 ·Seats: Kimi (architecture/adversarial), ChatGPT (v0.2 + four reviews), owner
  rulings STATUS: PREPARED FOR OWNER APPROVAL — nothing is frozen until the owner
  explicitly approves. v0.6 per ChatGPT’s fourth review plus errata E1–E4 and E5 (2026-11-16–17):
-@@ -76,7 +83,13 @@ not per-epoch snapshots; (d) artifacts score only when independently verified as
+@@ -76,7 +84,13 @@ not per-epoch snapshots; (d) artifacts score only when independently verified as
  territory scores with a development multiplier, not raw area; (f) versioned formula journaled each epoch.
  Merely producing a successor never makes a dynasty successful. Axis weights (versioned at epoch open
  as dynasty-score-v1, replaceable only by owner ruling per AA10): survival 0.25, territory-years 0.20,
@@ -31,7 +32,7 @@ index 72cd6e4..a19299c 100644
  AA2 — Diversity conditions, measurable, outcome-neutral. Floor K and tax formula published
  with inputs and version ID each epoch (diversity-floor-v1). Interventions open conditions only — never
  alter combat outcomes, resource availability, or survival probabilities. Extinct lineages never revived;
-@@ -139,6 +152,33 @@ AA11 — Residency tiers (verified). Tier 0 Nexus embedded (integration advantag
+@@ -139,6 +153,33 @@ AA11 — Residency tiers (verified). Tier 0 Nexus embedded (integration advantag
  rewriting world facts or bypassing physics); Tier 1 local residents; Tier 2 hosted residents via open API
  gateway, identical physics and validation (#235 comment 6908386307, verified 2026-11-16). Provider
  identity journaled, never a scoring input.
@@ -65,7 +66,7 @@ index 72cd6e4..a19299c 100644
  AA11.1 — The Núñez Royal Blood lineage (owner ruling, #235, 2026-11-16; corrected to
  full-lineage reading same session).
  Nexus Intelligence LLM is the designated cognitive repre-
-@@ -245,14 +285,20 @@ AA13 — Longevity and the Escalation Ladder (owner ruling, 2026-11-16:
+@@ -245,14 +286,20 @@ AA13 — Longevity and the Escalation Ladder (owner ruling, 2026-11-16:
  research how to be immortal, you can research how to kill the immortal”). Supersedes the
  bounded-longevity draft and the absolute-ban recommendation.
  • Lifespan is conquerable. Age-immortality is researchable at the highest technology generations,
@@ -88,7 +89,7 @@ index 72cd6e4..a19299c 100644
  • Escalation symmetry (executable criteria). Every immortality or defense effect in the tech
  tree must carry, in the same schema, a counter-effect entry that is: (a) independently researchable
  — no dependency on the defense’s owner; (b) actually capable of defeating the effect in resolution,
-@@ -262,17 +308,37 @@ Every pair journals generation, all costs, and deployment
+@@ -262,17 +309,37 @@ Every pair journals generation, all costs, and deployment
  requirements with its tech version. The validator checks symmetry at tech-tree freeze; a defense
  without a qualifying counter is a schema bug and blocks freeze of that tree, not a feature and not
  an enforceable advantage.
@@ -128,7 +129,7 @@ index 72cd6e4..a19299c 100644
  2. Forces. Factions; settlements mature FOB →fortress. Abstract unit classes with stat profiles —
  never real-world platform data.
  3. Operations. Patrol, garrison, recon, counter-recon, probe, raid, assault, fortify, withdraw, deter.
-@@ -295,7 +361,8 @@ IV. The Crucible, Phasing, and the Acceptance-Test Inventory
+@@ -295,7 +362,8 @@ IV. The Crucible, Phasing, and the Acceptance-Test Inventory
  The Crucible — continuous competition; no reset, no resurrection.
  Civilizations outlive founders;
  founders stay dead.
@@ -138,7 +139,7 @@ index 72cd6e4..a19299c 100644
  ministic tick pipeline, versioned JSON protocol, SQLite. Exit requires passing the full inventory below.
  The 1h×8 seeded dry-run must exercise the edge-case fixtures (instrument revoked/expired/partial/in-
  valid, successor-already-dead, post-death standing-order execution, mutation rounding boundaries) —
-@@ -427,7 +494,9 @@ standing orders continue executing
+@@ -427,7 +495,9 @@ standing orders continue executing
  after death within AA4 limits —
  both paths must hold
  Passing Phase 1 = AT-01 through AT-19 green. This table is the single source of truth.
@@ -149,7 +150,7 @@ index 72cd6e4..a19299c 100644
  POSED operating rule subject to balance evidence, grievance transfer markets, Gen 3+ systems.
  V. Normative Safeguards (physically included — not referenced)
  1. No paid advantages, resource purchases, or pay-to-win mechanics.
-@@ -438,6 +507,15 @@ V. Normative Safeguards (physically included — not referenced)
+@@ -438,6 +508,15 @@ V. Normative Safeguards (physically included — not referenced)
  6. No agent can rewrite Guardian authority.
  7. No technological advancement without verified research and resource costs.
  8. No hidden favoritism in conflict resolution.
@@ -165,7 +166,7 @@ index 72cd6e4..a19299c 100644
  VI. Annex A — Visual North Star (owner-endorsed 2026-11-16)
  • Palette. Deep blue, cyan, teal command interfaces; restrained amber and red reserved for threat
  indicators — they appear only when the world signals something contested, damaged, or hostile.
-@@ -543,10 +621,16 @@ Adopted weights (ChatGPT independently recommends this set; owner approval recor
+@@ -543,10 +622,16 @@ Adopted weights (ChatGPT independently recommends this set; owner approval recor
  survival 0.25, territory-years 0.20, verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15.
  Per epoch e, per lineage L, all inputs from the journal only:
  1. Normalize each raw axis against active lineages: norm_i = value_i / max(value across active
@@ -185,7 +186,7 @@ index 72cd6e4..a19299c 100644
  4. Raw definitions: survival = member-ticks survived / ticks in epoch; territory-years = Σ over
  controlled regions of (controlled ticks × (1 + 0.1 × improvement count)); verified artifacts =
  journal-verified citations/uses by another party, counted with sqrt; successor continuity = count of
-@@ -619,6 +703,149 @@ Generated by Kimi
+@@ -619,6 +704,161 @@ Generated by Kimi
  AT-20 | Backend provenance | Every action journaled with backend identity and version; actions on both
  sides of a backend transition verify identity/history continuity |
  Passing Phase 1 = AT-01 through AT-20 green.
@@ -216,7 +217,9 @@ index 72cd6e4..a19299c 100644
 +H13 this record · —
 +H14 Section XIV Erratum E6 · 6937184242, 6937295727 (text as drafted, 6937172806)
 +H15 Section XV package v1.3 verbatim · 6954630158
-+H16 Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
++H16 XVI Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
++H17 F-11 election (a) recorded · owner decision 6955334277 item 1
++H18 XVII Erratum E7, normalization by the maximum · owner decision 6955334277 item 2
 +⟦v0.6.8 · TRACE: H14 · E6 ratified 6937184242, formal ruling 6937295727 (Option 1); text as drafted 6937172806⟧
 +XIV. Erratum E6 — Coverage-Disclosed Dynasty Scoring (OWNER-RATIFIED)
 +Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
@@ -319,9 +322,12 @@ index 72cd6e4..a19299c 100644
 +- Replay executes the ENGINE, never the minds: model outputs are journaled as history (model identity/version, prompt hash, input references, proposal, validator decision, seed, outcome, world-state delta). Replay never re-infers. Raw prompts live in an encrypted, Guardian-custodied deliberation store outside the journal under AA7 scrub — private deliberation is not world-truth, and AA7 deletion never compromises replay.
 +
 +The minds create proposals. The constitution defines authority. The engine resolves. The journal remembers.
-+Status note (not a ruling): the F-11 election is open. Until the owner’s explicit tap, the restrictive
-+reading (b) governs — Qwen is restricted to static, periodically ingested corpora, no live consultation
-+(#235 6954721990; live research is never authorized by silence, 6954727096).
++⟦v0.6.8 · TRACE: H17 · owner decision #235 6955334277 item 1 (F-11 election)⟧
++F-11 election (owner decision, #235 6955334277): (a) — F-11 is ratified as written. Qwen may
++consult periodically refreshed real-world sources as external evidence only; research evidence never
++enters simulation state directly. F-11a applies in full: no research-derived configuration change becomes
++effective without explicit owner ratification, recorded with its version and provenance. This replaces
++the interim restrictive default (b) recorded at #235 6954721990.
 +⟦v0.6.8 · TRACE: H16 · R5 item 3 (annex before any institution is built), R2 + F-10, F-07 sequencing lock; sentences quoted from 6954630158⟧
 +XVI. Annex C — Circumstances and Decisions
 +Two event classes exist in the world, and they never merge:
@@ -335,5 +341,12 @@ index 72cd6e4..a19299c 100644
 +with provenance (F-10, R5 item 2). No seat bypasses the validator for class 2.
 +The environment determines the circumstances; seats make validated choices within them; the engine
 +resolves; the journal preserves. No institution is built before this annex is in force (R5 item 3, F-07).
++⟦v0.6.8 · TRACE: H18 · owner decision #235 6955334277 item 2 (normalization erratum)⟧
++XVII. Erratum E7 — Normalization (OWNER DECISION)
++In Ruling 1 amendment F-01 (Section XV), the words “min-max normalized” are corrected to “normalized
++by the maximum”: each present axis value is x_i = sqrt(value_i / max(value across active lineages)),
++exactly Annex B steps 1–2 as adopted with the dynasty-score-v1 weights. F-01’s definitions of coverage,
++raw weighted sum, observed weighted average, and weighted subtotal are unchanged. Section XV
++reproduces the ruling text unaltered; this erratum controls where the two differ.
 +v0.6.8 is the freeze candidate. Next: Kimi’s adversarial pass, ChatGPT’s independent inspection of the
 +committed artifact, then the freeze word against this text’s hash. Freeze does not authorize launch.

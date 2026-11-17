@@ -20,7 +20,7 @@ Ratification authorizes implementation only. Nothing here claims freeze, deploym
 | F-01 exact math | Text: Annex B step 3, plus R1 in Section XV | — | No |
 | Directorate tier grants Quinn nothing in validation, scoring, succession or lineage (F-06) | Text: AA11.2 lists four permitted acts and states "nothing else", with explicit zero authority | — | No |
 | Two event classes stay distinct (F-10) | Text: Annex C (Section XVI), Safeguard 12, Section XV R2/F-10 | — | No |
-| F-11(b) is the active default until the owner taps | Text: status note under Section XV (labelled as not a ruling) | — | No |
+| F-11 election (a) recorded (owner decision 6955334277) | Text: H17 under Section XV, replacing the interim (b) note; F-11a restated | — | No |
 | The four v0.6.7 audit items | Text: hunks H2, H4–H7 | — | No |
 
 ## B. Code against the rulings
@@ -29,11 +29,11 @@ Ratification authorizes implementation only. Nothing here claims freeze, deploym
 |---|---|---|---|
 | E6 abeyance: no path redistributes missing weight | **Yes**: `observer/dynastyScore.ts:220-227` computes c = Σ present w; s = Σ w·x; average = s/c; subtotal = s. A grep for renormalize or redistribute over every source directory finds only that line | `tests/at21/dynasty-score.test.ts` (MISSING axes kept missing, re-derivation stable) | **Yes**: Muse's F-01 code check, 6954334884 |
 | F-01 acceptance: adding a missing axis leaves prior emissions byte-identical | Partial: scores are derived from verified journal prefixes and never stored | `at21` "explicit close boundary stable when later ticks change the world" (a later *tick*, not a later *axis*) | No: **no test adds an axis** |
-| F-01 normalization wording | See open item 1 | — | — |
+| E7: normalization by the maximum (owner decision 6955334277) | Text: Section XVII. Code: **Yes**, `observer/dynastyScore.ts:209` `rawValue / maxRaw`; no code change needed | Weak: `at21` covers only a single-lineage case (raw 1 → 1). No multi-lineage test tells value/max apart from min-max | No |
 | Directorate seat (Quinn) | **No**: no Quinn or Directorate code exists | — | — |
 | Class 1, environmental circumstances engine (climate-v1) | **No**: tick step 2 "environment" is a placeholder; §12.3 gap | — | — |
 | Class 2, validated agency actions | Yes: `World.submit` → `engine/world/validator.ts` → resolve → journal (`engine/world/world.ts` tick steps 6–11) | AT-07, AT-15, AT-19 suites | **No**: CI runs these on every merge, but no named run or reviewer has checked them against R2/F-10 |
-| F-11(b): no live research input | Holds by absence: no Qwen or research code exists | — | — |
+| F-11(a) live research as evidence only; F-11a: no research-derived config change without owner ratification | **No**: no Qwen, research, or research-config code exists. The F-11a gate must exist before any research-derived change can be proposed | — | — |
 | R9 provenance: prompt hash and input references | **No**: actions carry backend identity and version only (AT-20); gap disclosed in 6954619011 | — | — |
 | R9: replay survives deletion of the deliberation store (F-09) | Yes (inherent) | `tests/aa7/replay-after-deletion.test.ts` (PR #30) | **Yes**: built by Muse, CI run 44129187976; re-run by Claude on `5651670`, passed |
 | R6 Fiction Safeguard lint | **No** | — | — |
@@ -66,7 +66,7 @@ The runner adopting `expectTick` is Muse's call.
 
 ## D. Open items for Kimi and ChatGPT (found while folding, not resolved by Claude)
 
-1. **F-01 says x_i is "min-max normalized".** Annex B step 1 and the code both normalize by the maximum (`value / max`, with min taken as 0). Those differ whenever the minimum is above 0. The ruling's wording and the text and code disagree. This needs an owner-visible erratum one way or the other. I left both texts as they are.
+1. **Resolved:** "min-max" vs `value / max` is settled by owner decision 6955334277, recorded as Erratum E7 (Section XVII), with no code change. **Still open:** divide-by-max is itself undefined when every active lineage's raw value is 0 (max = 0). The code returns 0 (`observer/dynastyScore.ts:206-209`, commented "a real zero, not missing evidence"), but neither Annex B nor E7 says so. This is a one-line ruling or a reviewer finding; I did not write it into the text.
 2. **Section XV R1 and Section XIV E6 are two ratified wordings of the same law.** R1 has six points and E6 has seven clauses. I found no conflict, but the frozen text carries both.
 3. **Title and identity.** The document is still "Nexus Isles"; R3 says "Nexus becomes a living simulation of real Earth" (package title "Nexus Earth"). It is not renamed, because no ruling renames it.
 4. **Kept from v0.6.7 because no ruling touches them:** the "AT-01 through AT-19" and "AT-01 through AT-20" tails disagree; Section VIII says "full comment text OWED"; the preamble's "tactical-military … simulator" identity remains.

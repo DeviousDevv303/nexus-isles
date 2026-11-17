@@ -1,9 +1,10 @@
-⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158⟧
+⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158; owner decisions 6955334277⟧
 NEXUS ISLES — Consolidated Founding Constitution v0.6.8
 (freeze candidate, audit-precise)
 v0.6.8 prepared 2026-11-17 by the repo lane (Claude). It folds the nine owner-ratified rulings of
 package v1.3 (#235 6954630158; verbatim in Section XV), ratified Erratum E6 with amendment F-01, and
-the four v0.6.7 audit items (#235 6930329180). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
+the four v0.6.7 audit items (#235 6930329180), and the owner decisions of #235 6955334277 (F-11 election
+(a); Erratum E7). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
 naming its authority; Section XIII lists every hunk. Text without a TRACE line is v0.6.7 unchanged.
 Ratification authorizes implementation only; this text is not frozen until the owner’s freeze word
 against its hash, and freezing it does not authorize deployment or launch.
@@ -728,7 +729,9 @@ H12 stale closing line struck · audit hygiene
 H13 this record · —
 H14 Section XIV Erratum E6 · 6937184242, 6937295727 (text as drafted, 6937172806)
 H15 Section XV package v1.3 verbatim · 6954630158
-H16 Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
+H16 XVI Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
+H17 F-11 election (a) recorded · owner decision 6955334277 item 1
+H18 XVII Erratum E7, normalization by the maximum · owner decision 6955334277 item 2
 ⟦v0.6.8 · TRACE: H14 · E6 ratified 6937184242, formal ruling 6937295727 (Option 1); text as drafted 6937172806⟧
 XIV. Erratum E6 — Coverage-Disclosed Dynasty Scoring (OWNER-RATIFIED)
 Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
@@ -831,9 +834,12 @@ The prohibition on live external feeds in Ruling 3 covers SIMULATION inputs: not
 - Replay executes the ENGINE, never the minds: model outputs are journaled as history (model identity/version, prompt hash, input references, proposal, validator decision, seed, outcome, world-state delta). Replay never re-infers. Raw prompts live in an encrypted, Guardian-custodied deliberation store outside the journal under AA7 scrub — private deliberation is not world-truth, and AA7 deletion never compromises replay.
 
 The minds create proposals. The constitution defines authority. The engine resolves. The journal remembers.
-Status note (not a ruling): the F-11 election is open. Until the owner’s explicit tap, the restrictive
-reading (b) governs — Qwen is restricted to static, periodically ingested corpora, no live consultation
-(#235 6954721990; live research is never authorized by silence, 6954727096).
+⟦v0.6.8 · TRACE: H17 · owner decision #235 6955334277 item 1 (F-11 election)⟧
+F-11 election (owner decision, #235 6955334277): (a) — F-11 is ratified as written. Qwen may
+consult periodically refreshed real-world sources as external evidence only; research evidence never
+enters simulation state directly. F-11a applies in full: no research-derived configuration change becomes
+effective without explicit owner ratification, recorded with its version and provenance. This replaces
+the interim restrictive default (b) recorded at #235 6954721990.
 ⟦v0.6.8 · TRACE: H16 · R5 item 3 (annex before any institution is built), R2 + F-10, F-07 sequencing lock; sentences quoted from 6954630158⟧
 XVI. Annex C — Circumstances and Decisions
 Two event classes exist in the world, and they never merge:
@@ -847,5 +853,12 @@ accepted or rejected by the validator; resolved by the engine under seeded RNG; 
 with provenance (F-10, R5 item 2). No seat bypasses the validator for class 2.
 The environment determines the circumstances; seats make validated choices within them; the engine
 resolves; the journal preserves. No institution is built before this annex is in force (R5 item 3, F-07).
+⟦v0.6.8 · TRACE: H18 · owner decision #235 6955334277 item 2 (normalization erratum)⟧
+XVII. Erratum E7 — Normalization (OWNER DECISION)
+In Ruling 1 amendment F-01 (Section XV), the words “min-max normalized” are corrected to “normalized
+by the maximum”: each present axis value is x_i = sqrt(value_i / max(value across active lineages)),
+exactly Annex B steps 1–2 as adopted with the dynasty-score-v1 weights. F-01’s definitions of coverage,
+raw weighted sum, observed weighted average, and weighted subtotal are unchanged. Section XV
+reproduces the ruling text unaltered; this erratum controls where the two differ.
 v0.6.8 is the freeze candidate. Next: Kimi’s adversarial pass, ChatGPT’s independent inspection of the
 committed artifact, then the freeze word against this text’s hash. Freeze does not authorize launch.
