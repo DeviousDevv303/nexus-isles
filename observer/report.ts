@@ -27,9 +27,13 @@ export function deriveReport(journal: Journal): WorldReport {
 
   for (const entry of journal.entries()) {
     byType[entry.type] = (byType[entry.type] ?? 0) + 1;
-    if (entry.type === "TICK_RESOLVED") resolvedTicks += 1;
+    // The world core's vocabulary: ticks resolve as TICK_COMMIT and a
+    // resident's executed action is ACTION_ACCEPTED. (TICK_RESOLVED and the
+    // bare ACTION were the dry-run fixture's dialect; counting them reported
+    // zero ticks and zero actions for every real journal.)
+    if (entry.type === "TICK_COMMIT") resolvedTicks += 1;
     if (entry.type === "EXTERNAL_EVENT") externalEvents += 1;
-    if (entry.type === "ACTION") {
+    if (entry.type === "ACTION_ACCEPTED") {
       actionsByActor[entry.actor] = (actionsByActor[entry.actor] ?? 0) + 1;
     }
     if (entry.type === "DEATH") {

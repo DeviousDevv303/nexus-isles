@@ -57,9 +57,13 @@ export function submitConsoleEvent(
       throw new Error("C3 seat operations require a typed reason");
     }
   }
+  // A tick is resolved when the world core commits it: the core's journal
+  // vocabulary marks resolution with TICK_COMMIT (there is no TICK_RESOLVED
+  // entry in a real journal — that name belonged to the dry-run fixture's
+  // dialect, and reading for it left this guard inert against real worlds).
   const lastResolved = journal
     .entries()
-    .filter((e) => e.type === "TICK_RESOLVED")
+    .filter((e) => e.type === "TICK_COMMIT")
     .reduce((max, e) => Math.max(max, e.tick), -1);
   if (submission.affectsTick <= lastResolved) {
     throw new Error(
