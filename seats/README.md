@@ -5,6 +5,19 @@ Adapters: Tier 0 embedded (Nexus — residents/nexus/), Tier 1 local-runner,
 Tier 2 hosted gateway. Budgets in tokens + actions per tick, never dollars;
 latency never scored (AA8); provider identity journaled, never scored (AA11).
 
+## Seat driver (AT-22)
+
+`driver.ts` is the per-tick bridge from a driven seat to a backend: it passes
+the seat's journal-delivered, intel-scoped observation and private directives to
+the backend, structurally parses candidate actions, and queues them through
+`World.submit()`. The world's single validator remains authoritative. The
+deterministic `ScriptedPolicyBackend` is a **TEST DOUBLE**, never Nexus or a
+real model; `RawOutputBackend` is the contract adapter for raw model output.
+Malformed output records only a safe `DRIVER_ACTION_REJECTED` reason and backend
+reference at the next tick boundary—raw prompts, directives, and model output
+never enter the journal. A driven seat closes permanently after death; there is
+no driver respawn or rebind path.
+
 ## Credentials, gateway, channels (Phase 1 task T4 + Addendum A block 3)
 
 - `credentials.ts`: scoped, authenticated, revocable, attributable seat

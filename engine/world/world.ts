@@ -73,6 +73,7 @@ export class World {
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
   private pendingRejections: Record<string, unknown>[] = [];
+  private pendingDriverRejections: Record<string, unknown>[] = [];
 
   private constructor(
     private readonly journal: Journal,
@@ -216,6 +217,15 @@ export class World {
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }
 
+  /** Queue a driver refusal; only its safe reason and backend provenance enter the journal. */
+  recordDriverRefusal(seatId: string, backend: BackendRef, reason: string): void {
+    this.pendingDriverRejections.push({
+      seat: seatId,
+      backend: { providerId: backend.providerId, version: backend.version },
+      reason,
+    });
+  }
+
   /**
    * AA9: queue an owner-console intervention against a running world. All
    * console laws are checked now (draft, rollback, C3 double-confirm, and
@@ -281,6 +291,10 @@ export class World {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
+    for (const payload of this.pendingDriverRejections) {
+      this.emit("DRIVER_ACTION_REJECTED", "seat-driver", payload);
+    }
+    this.pendingDriverRejections = [];
     this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3
