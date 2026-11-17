@@ -1,10 +1,10 @@
-⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158; owner decisions 6955334277⟧
+⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158; owner decisions 6955334277; E8 6955932914⟧
 NEXUS ISLES — Consolidated Founding Constitution v0.6.8
 (freeze candidate, audit-precise)
 v0.6.8 prepared 2026-11-17 by the repo lane (Claude). It folds the nine owner-ratified rulings of
 package v1.3 (#235 6954630158; verbatim in Section XV), ratified Erratum E6 with amendment F-01, and
 the four v0.6.7 audit items (#235 6930329180), and the owner decisions of #235 6955334277 (F-11 election
-(a); Erratum E7). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
+(a); Erratum E7), and Erratum E8 (#235 6955932914). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
 naming its authority; Section XIII lists every hunk. Text without a TRACE line is v0.6.7 unchanged.
 Ratification authorizes implementation only; this text is not frozen until the owner’s freeze word
 against its hash, and freezing it does not authorize deployment or launch.
@@ -626,6 +626,10 @@ lineages); missing evidence →axis marked MISSING (never silently zero-scored).
 ⟦v0.6.8 · TRACE: H11a · E6 clause 1 (ratified 6937184242 / 6937295727); R1 item 1, 6954630158⟧
 A MISSING axis holds its weight in abeyance and is never renormalized or redistributed (E6, R1). This
 supersedes the former renormalization clause of this step in full.
+⟦v0.6.8 · TRACE: H19b · Erratum E8 (zero means zero), #235 6955932914⟧
+Presence is a measurement fact (E8): an axis measured at zero is present, not MISSING. When every active
+lineage measured 0 on an axis, each normalized value is 0 and the axis’s full weight counts toward
+coverage.
 2. Diminish: axis_score_i = sqrt(norm_i).
 ⟦v0.6.8 · TRACE: H11b · R1 amendment F-01 (exact semantics), 6954630158⟧
 3. Combine (F-01): for the present-axis set P, coverage c = Σ{i∈P} w_i; raw weighted sum
@@ -732,6 +736,10 @@ H15 Section XV package v1.3 verbatim · 6954630158
 H16 XVI Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
 H17 F-11 election (a) recorded · owner decision 6955334277 item 1
 H18 XVII Erratum E7, normalization by the maximum · owner decision 6955334277 item 2
+H19a E8 line in Section XIV · Erratum E8 6955932914
+H19b Annex B step 1 presence sentence · Erratum E8 6955932914
+H19c E7 maximum-is-zero sentence · Erratum E8 6955932914
+H19d XVIII Erratum E8 · 6955932914
 ⟦v0.6.8 · TRACE: H14 · E6 ratified 6937184242, formal ruling 6937295727 (Option 1); text as drafted 6937172806⟧
 XIV. Erratum E6 — Coverage-Disclosed Dynasty Scoring (OWNER-RATIFIED)
 Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
@@ -762,6 +770,11 @@ at genesis); the observer reads that declaration and the journal and determinist
 observer itself never writes.
 Territory (formal ruling 6937295727 item 2): the territorial-control definition remains RESERVED; the
 territory-years axis reports MISSING until the owner separately ratifies a definition.
+⟦v0.6.8 · TRACE: H19a · Erratum E8 completes E6 in the other direction, #235 6955932914⟧
+E8 (Section XVIII): Presence is a measurement fact, not an outcome fact. An axis is present if it was measured, regardless of
+its value. A measured zero contributes zero to the weighted score while its full weight counts toward
+coverage. An unmeasured axis is missing, and its weight remains in abeyance. Zero never means missing;
+missing never means zero.
 ⟦v0.6.8 · TRACE: H15 · package v1.3 6954630158, reproduced byte-exact from the comment body (title through closing line; the posting header, posting instructions and amendment log are omitted). SHA-256 of the full comment body as read 2026-11-17: 6e58312c8ece34a54de54ca8e6f18a5c5ecafb433add9365c0423dceb45aac57⟧
 XV. Owner Rulings — Nexus Earth Package v1.3 (OWNER-RATIFIED, verbatim)
 NEXUS EARTH — OWNER RULINGS PACKAGE v1.3
@@ -860,5 +873,19 @@ by the maximum”: each present axis value is x_i = sqrt(value_i / max(value acr
 exactly Annex B steps 1–2 as adopted with the dynasty-score-v1 weights. F-01’s definitions of coverage,
 raw weighted sum, observed weighted average, and weighted subtotal are unchanged. Section XV
 reproduces the ruling text unaltered; this erratum controls where the two differ.
+⟦v0.6.8 · TRACE: H19c · Erratum E8, #235 6955932914⟧
+Where the maximum is 0 (every active lineage measured 0), there is nothing to divide by: each
+normalized value is 0, per E8 (Section XVIII).
+⟦v0.6.8 · TRACE: H19d · Erratum E8 (zero means zero), decided under the owner’s delegation, #235 6955932914; acceptance criteria in the same record⟧
+XVIII. Erratum E8 — Zero Means Zero
+Decided 2026-11-17 under the owner’s delegation (#235 6955932914), as drafted by ChatGPT and endorsed by
+Kimi and Claude:
+Presence is a measurement fact, not an outcome fact. An axis is present if it was measured, regardless of
+its value. A measured zero contributes zero to the weighted score while its full weight counts toward
+coverage. An unmeasured axis is missing, and its weight remains in abeyance. Zero never means missing;
+missing never means zero.
+It completes E6 symmetrically (E6: missing never means zero) and is formula-independent. Acceptance:
+an axis measured zero for every lineage and an axis unmeasured for every lineage produce different
+coverage (regression pair, tests/at21/zero-means-zero.test.ts).
 v0.6.8 is the freeze candidate. Next: Kimi’s adversarial pass, ChatGPT’s independent inspection of the
 committed artifact, then the freeze word against this text’s hash. Freeze does not authorize launch.

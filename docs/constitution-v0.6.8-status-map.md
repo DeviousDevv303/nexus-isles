@@ -7,7 +7,7 @@ three separate statuses. They are never merged into one green claim:
 - **Tested**: an automated test exercises it.
 - **Independently verified**: a lane other than the builder, or a named CI run, checked it against this requirement on the record. A status of "verified" always names its evidence (a #235 comment id or a CI run id); otherwise the cell says No.
 
-Base: nexus-isles main `5651670`. Section C's gap is built in nexus-isles#31 (head `56c0b3f`, unmerged); this map is not updated for it until #31 merges. "Text" means the requirement is stated in `docs/constitution-v0.6.8.txt`.
+Base: nexus-isles main `5651670`. As of the E8 re-cut, this PR also changes code (`observer/dynastyScore.ts`) and adds a test. Section C's gap is built in nexus-isles#31 (head `56c0b3f`, unmerged); this map is not updated for it until #31 merges. "Text" means the requirement is stated in `docs/constitution-v0.6.8.txt`.
 Ratification authorizes implementation only. Nothing here claims freeze, deployment or launch readiness.
 
 ## A. Constitutional text (this PR)
@@ -29,7 +29,10 @@ Ratification authorizes implementation only. Nothing here claims freeze, deploym
 |---|---|---|---|
 | E6 abeyance: no path redistributes missing weight | **Yes**: `observer/dynastyScore.ts:220-227` computes c = Σ present w; s = Σ w·x; average = s/c; subtotal = s. A grep for renormalize or redistribute over every source directory finds only that line | `tests/at21/dynasty-score.test.ts` (MISSING axes kept missing, re-derivation stable) | **Yes**: Muse's F-01 code check, 6954334884 |
 | F-01 acceptance: adding a missing axis leaves prior emissions byte-identical | Partial: scores are derived from verified journal prefixes and never stored | `at21` "explicit close boundary stable when later ticks change the world" (a later *tick*, not a later *axis*) | No: **no test adds an axis** |
-| E7: normalization by the maximum (owner decision 6955334277) | Text: Section XVII. Code: **Yes**, `observer/dynastyScore.ts:209` `rawValue / maxRaw`; no code change needed | Weak: `at21` covers only a single-lineage case (raw 1 → 1). No multi-lineage test tells value/max apart from min-max | No |
+| E7: normalization by the maximum (owner decision 6955334277) | Text: Section XVII. Code: **Yes**, `scoreAxes` in `observer/dynastyScore.ts` (`rawValue / maxRaw`) | **Yes**: `tests/at21/zero-means-zero.test.ts` "E7 with real values" (4/2/1 → 1/0.5/0.25; a min-max mutation fails it) | No |
+| E8 zero means zero (6955932914): (1) E6 text, (2) normalization text | Text: H19a (Section XIV), H19b (Annex B step 1), H19c (Section XVII), H19d (Section XVIII, the clause verbatim) | — | No |
+| E8 (3) implementation | **Yes**: `scoreAxes` keeps a measured all-zero axis available, normalized 0, with full weight in coverage; only unmeasured evidence is MISSING. The normalize/combine step was extracted into the exported pure `scoreAxes` with no behavior change (existing AT-21 and AT-18 suites unchanged and green) | — | No |
+| E8 (4) regression pair: measured-zero vs unmeasured give different coverage | — | **Yes**: `tests/at21/zero-means-zero.test.ts` (coverage 0.25 vs 0; average 0 vs null). A "zero becomes missing" mutation fails 2 of its 4 tests | No |
 | Directorate seat (Quinn) | **No**: no Quinn or Directorate code exists | — | — |
 | Class 1, environmental circumstances engine (climate-v1) | **No**: tick step 2 "environment" is a placeholder; §12.3 gap | — | — |
 | Class 2, validated agency actions | Yes: `World.submit` → `engine/world/validator.ts` → resolve → journal (`engine/world/world.ts` tick steps 6–11) | AT-07, AT-15, AT-19 suites | **No**: CI runs these on every merge, but no named run or reviewer has checked them against R2/F-10 |
@@ -66,7 +69,7 @@ The runner adopting `expectTick` is Muse's call.
 
 ## D. Open items for Kimi and ChatGPT (found while folding, not resolved by Claude)
 
-1. **Resolved:** "min-max" vs `value / max` is settled by owner decision 6955334277, recorded as Erratum E7 (Section XVII), with no code change. **Still open:** divide-by-max is itself undefined when every active lineage's raw value is 0 (max = 0). The code returns 0 (`observer/dynastyScore.ts:206-209`, commented "a real zero, not missing evidence"), but neither Annex B nor E7 says so. This is a one-line ruling or a reviewer finding; I did not write it into the text.
+1. **Resolved:** "min-max" vs `value / max` is settled by owner decision 6955334277 (Erratum E7). The max = 0 case is settled by Erratum E8 (6955932914), in text, code and tests. **For reviewers:** E8 was decided by Muse under the owner's delegation, as recorded in 6955932914, not posted in the owner's own words. Whether that meets the "owner-posted rulings only" standard is the reviewers' and the owner's call.
 2. **Section XV R1 and Section XIV E6 are two ratified wordings of the same law.** R1 has six points and E6 has seven clauses. I found no conflict, but the frozen text carries both.
 3. **Title and identity.** The document is still "Nexus Isles"; R3 says "Nexus becomes a living simulation of real Earth" (package title "Nexus Earth"). It is not renamed, because no ruling renames it.
 4. **Kept from v0.6.7 because no ruling touches them:** the "AT-01 through AT-19" and "AT-01 through AT-20" tails disagree; Section VIII says "full comment text OWED"; the preamble's "tactical-military … simulator" identity remains.
