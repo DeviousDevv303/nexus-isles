@@ -124,6 +124,9 @@ export class LaunchRunner {
     try {
       this.openWorld();
     } catch (cause) {
+      // A world opened before the failure holds the engine writer lock;
+      // close it so the lock dies with this runner, not with the process.
+      this.closeWorld();
       this.releaseLock();
       throw cause;
     }
@@ -166,7 +169,8 @@ export class LaunchRunner {
 
   /**
    * Clean shutdown: no new ticks, the in-flight tick (if any) finishes and
-   * persists, a final snapshot is written, and the lock is released.
+   * persists, a final snapshot is written, the world is closed (releasing
+   * the engine writer lock it holds), and the runner lock is released.
    */
   async stop(reason = "requested"): Promise<void> {
     this.stopRequested = true;
@@ -182,8 +186,18 @@ export class LaunchRunner {
         // A failed final snapshot is a cache miss next resume, never corruption.
       }
       this.logLine(`RUNNER stop reason=${reason} tick=${this.world.tickNumber} head=${this.world.headHash}`);
+      this.closeWorld();
     }
     this.releaseLock();
+  }
+
+  /** Close the held world, releasing its engine writer lock. Idempotent. */
+  private closeWorld(): void {
+    if (!this.world) return;
+    const world = this.world;
+    this.world = null;
+    this.driver = null;
+    world.close();
   }
 
   // ---- world open / create ----------------------------------------------
@@ -197,7 +211,6 @@ export class LaunchRunner {
       // taken on an unverified journal.
       world = World.restoreFromFile(this.journalPath, { snapshotPath: this.snapshotPath });
       this.mode = "resumed";
-      if (this.genesis) this.crossCheckGenesis(world);
     } else {
       if (!this.genesis) {
         throw new Error(
@@ -207,7 +220,11 @@ export class LaunchRunner {
       world = World.create(this.genesis.seed, worldConfigFor(this.genesis), { persistPath: this.journalPath });
       this.mode = "genesis";
     }
+    // Assign before any check that can throw (genesis cross-check, seat
+    // checks): from here on start()'s cleanup owns closing this world and
+    // releasing the engine writer lock it holds.
     this.world = world;
+    if (this.mode === "resumed" && this.genesis) this.crossCheckGenesis(world);
 
     const seats = this.genesis?.seats ?? this.seatsFromWorld(world);
     const driven: DrivenSeat[] = [];

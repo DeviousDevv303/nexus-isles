@@ -51,8 +51,13 @@ async function main(): Promise<void> {
   process.on("SIGTERM", () => shutdown("SIGTERM"));
 
   if (maxTicks !== undefined) {
-    for (let i = 0; i < maxTicks && !stopping; i++) await runner.tickOnce();
-    await runner.stop("ticks-complete");
+    try {
+      for (let i = 0; i < maxTicks && !stopping; i++) await runner.tickOnce();
+    } finally {
+      // stop() closes the world, releasing the engine writer lock even
+      // when a tick threw.
+      await runner.stop("ticks-complete");
+    }
     return;
   }
   runner.run();
