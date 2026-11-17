@@ -7,16 +7,15 @@
 // continuity is held for the owner's E6 audit, and artifacts/wealth lack
 // evidence schemas. No score behavior is changed by the T7 mainline update.
 
-import { canonicalStringify, Journal, type JournalEntry } from "../ledger/journal.js";
+import { Journal, type JournalEntry } from "../ledger/journal.js";
 import { deriveVerifiedEntities } from "../lineage/verifiedEntities.js";
-import type { World } from "../engine/world/world.js";
 import {
   DYNASTY_SCORE_AXIS_DEFINITIONS,
   DYNASTY_SCORE_VERSION,
   DYNASTY_SCORE_WEIGHTS,
   type DynastyScoreAxis,
   type DynastyScoreEpochOpenPayload,
-} from "./dynastyScoreSpec.js";
+} from "../governance/dynastyScoreSpec.js";
 
 export type AxisEvidence =
   | {
@@ -61,25 +60,23 @@ export interface DynastyScoreRecord {
 }
 
 const AXES = Object.keys(DYNASTY_SCORE_WEIGHTS) as DynastyScoreAxis[];
-const EPOCH_OPEN = "DYNASTY_SCORE_EPOCH_OPENED";
-const EPOCH_CLOSE = "DYNASTY_SCORE_EPOCH_CLOSED";
+export interface DynastyScoreEpoch { epochId: string; startTick: number; }
 
-function copyToJournal(entries: readonly JournalEntry[]): Journal {
-  const journal = new Journal();
-  for (const entry of entries) {
-    const appended = journal.append({
+function journalThroughTick(journal: Journal, endTick: number): Journal {
+  const prefix = new Journal();
+  for (const entry of journal.entries()) {
+    if (entry.tick > endTick) break;
+    const appended = prefix.append({
       tick: entry.tick,
       type: entry.type,
       actor: entry.actor,
       payload: { ...entry.payload },
     });
-    if (appended.hash !== entry.hash) {
-      throw new Error(`journal entry ${entry.index} changed while copying`);
-    }
+    if (appended.hash !== entry.hash) throw new Error(`journal entry ${entry.index} changed while copying`);
   }
-  const verified = journal.verify();
-  if (!verified.ok) throw new Error(`journal failed verification at index ${verified.firstBadIndex}: ${verified.reason}`);
-  return journal;
+  const verified = prefix.verify();
+  if (!verified.ok) throw new Error(`journal prefix failed verification at index ${verified.firstBadIndex}: ${verified.reason}`);
+  return prefix;
 }
 
 function latestCommittedTick(entries: readonly JournalEntry[]): number {
@@ -91,46 +88,16 @@ function latestCommittedTick(entries: readonly JournalEntry[]): number {
   return last.payload.tick;
 }
 
-function openPayload(entries: readonly JournalEntry[], epochId: string): DynastyScoreEpochOpenPayload {
-  const matches = entries.filter((entry) => entry.type === EPOCH_OPEN && entry.payload.epochId === epochId);
-  if (matches.length !== 1) throw new Error(`expected exactly one open record for score epoch ${epochId}`);
-  const payload = matches[0].payload as unknown as DynastyScoreEpochOpenPayload;
-  if (
-    payload.version !== DYNASTY_SCORE_VERSION ||
-    canonicalStringify(payload.weights) !== canonicalStringify(DYNASTY_SCORE_WEIGHTS) ||
-    payload.normalizationPopulation !== "active-lineages-at-epoch-close" ||
-    payload.formula !== "weighted subtotal uses frozen weights; missing weight remains in abeyance" ||
-    payload.tickAccounting !== "resolved-ticks-after-open; alive-at-tick-start" ||
-    !Number.isSafeInteger(payload.startTick) ||
-    !Array.isArray(payload.activeLineagesAtOpen) ||
-    canonicalStringify(payload.axisDefinitions) !== canonicalStringify(DYNASTY_SCORE_AXIS_DEFINITIONS)
-  ) {
-    throw new Error(`score epoch ${epochId} has an unsupported or altered formula contract`);
-  }
-  return payload;
-}
-
-/**
- * Open a score epoch at the world's current committed boundary. The exact
- * version, weights, raw-axis definitions, tick convention, and open-time
- * active-lineage snapshot are recorded before the epoch's scored ticks.
- */
-export function openDynastyScoreEpoch(world: World, epochId: string): void {
-  if (!epochId || epochId.trim() !== epochId) throw new Error("epochId must be a non-empty trimmed string");
-  const journal = copyToJournal(world.entries());
+function openPayload(journal: Journal, epoch: DynastyScoreEpoch): DynastyScoreEpochOpenPayload {
+  if (!epoch.epochId || epoch.epochId.trim() !== epoch.epochId) throw new Error("epochId must be a non-empty trimmed string");
+  if (!Number.isSafeInteger(epoch.startTick) || epoch.startTick < 0) throw new Error("epoch startTick must be a non-negative integer");
+  const latest = latestCommittedTick(journal.entries());
+  if (epoch.startTick > latest) throw new Error("epoch startTick cannot exceed the latest committed tick");
   const entities = deriveVerifiedEntities(journal);
-  const alreadyOpen = journal.entries().some((entry) =>
-    entry.type === EPOCH_OPEN &&
-    !journal.entries().some((closed) => closed.type === EPOCH_CLOSE && closed.payload.epochId === entry.payload.epochId),
-  );
-  if (alreadyOpen) throw new Error("a dynasty-score epoch is already open");
-  if (journal.entries().some((entry) => entry.type === EPOCH_OPEN && entry.payload.epochId === epochId)) {
-    throw new Error(`score epoch ${epochId} was already opened`);
-  }
-  const payload: DynastyScoreEpochOpenPayload = {
-    epochId,
+  return {
+    epochId: epoch.epochId,
     version: DYNASTY_SCORE_VERSION,
-    startTick: world.tickNumber,
+    startTick: epoch.startTick,
     weights: DYNASTY_SCORE_WEIGHTS,
     normalizationPopulation: "active-lineages-at-epoch-close",
     formula: "weighted subtotal uses frozen weights; missing weight remains in abeyance",
@@ -144,7 +111,6 @@ export function openDynastyScoreEpoch(world: World, epochId: string): void {
       "wealth-resilience remains MISSING until income-source, upkeep, and productive-deployment records exist",
     ],
   };
-  world.openDynastyScoreEpoch(payload);
 }
 
 function missing(reason: string): AxisEvidence {
@@ -172,11 +138,12 @@ function available(rawValue: number, basis: string): AxisEvidence {
 function computeScore(
   journal: Journal,
   epochId: string,
+  startTick: number,
   endTick: number,
   sourceJournalHead: string,
 ): DynastyScoreRecord {
   const entries = journal.entries();
-  const opened = openPayload(entries, epochId);
+  const opened = openPayload(journal, { epochId, startTick });
   if (!Number.isSafeInteger(endTick) || endTick < opened.startTick) {
     throw new Error("score epoch endTick must be a committed tick at or after its startTick");
   }
@@ -289,37 +256,18 @@ function computeScore(
   };
 }
 
-/** Derive the current epoch score, or re-derive and check a recorded close. */
-export function deriveDynastyScore(journal: Journal, epochId: string): DynastyScoreRecord {
+/** Derive a score from a verified journal only; this observer never mutates the world or journal. */
+export function deriveDynastyScore(
+  journal: Journal,
+  epochId: string,
+  startTick = 0,
+  endTick?: number,
+): DynastyScoreRecord {
   const verified = journal.verify();
   if (!verified.ok) throw new Error(`journal failed verification at index ${verified.firstBadIndex}: ${verified.reason}`);
-  // Replay the entire world and validate every state claim before scoring.
   deriveVerifiedEntities(journal);
   const entries = journal.entries();
-  const closes = entries.filter((entry) => entry.type === EPOCH_CLOSE && entry.payload.epochId === epochId);
-  if (closes.length > 1) throw new Error(`score epoch ${epochId} was closed more than once`);
-  if (closes.length === 1) {
-    const close = closes[0];
-    const prefix = copyToJournal(entries.slice(0, close.index));
-    const priorHead = prefix.headHash();
-    if (close.payload.sourceJournalHead !== priorHead) {
-      throw new Error(`recorded source journal head for epoch ${epochId} does not match its verified journal prefix`);
-    }
-    const computed = computeScore(prefix, epochId, close.payload.endTick as number, priorHead);
-    return computed;
-  }
-  return computeScore(journal, epochId, latestCommittedTick(entries), journal.headHash());
-}
-
-/** Close and journal a reproducible score snapshot at the current boundary. */
-export function closeDynastyScoreEpoch(world: World, epochId: string): DynastyScoreRecord {
-  const journal = copyToJournal(world.entries());
-  const sourceJournalHead = journal.headHash();
-  const score = computeScore(journal, epochId, world.tickNumber, sourceJournalHead);
-  world.closeDynastyScoreEpoch({
-    epochId,
-    endTick: score.endTick,
-    sourceJournalHead,
-  });
-  return score;
+  const resolvedEndTick = endTick ?? latestCommittedTick(entries);
+  const scoringJournal = resolvedEndTick === latestCommittedTick(entries) ? journal : journalThroughTick(journal, resolvedEndTick);
+  return computeScore(scoringJournal, epochId, startTick, resolvedEndTick, scoringJournal.headHash());
 }

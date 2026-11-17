@@ -1,17 +1,15 @@
-// Directive T7 (Issue #235): regression gate for journal-derived
-// dynasty-score-v1. Key decisions under test: versioned open/close records,
-// verified survival, explicit MISSING axes, deterministic close-prefix
-// replay, and tamper detection. Unfinished: T7's territory and continuity
-// cases intentionally assert their held/MISSING status; this suite does not
-// validate future evidence schemas that are not implemented yet.
+// AT-21 / T7 — pure, journal-derived dynasty-score-v1 observer.
+// registry: dynasty-score-v1
+// The observer never opens/closes epochs or appends score records; identical
+// verified journal input and explicit epoch bounds must reproduce the score.
 
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Journal } from "../../ledger/journal.js";
-import { closeDynastyScoreEpoch, deriveDynastyScore, openDynastyScoreEpoch } from "../../observer/dynastyScore.js";
-import { DYNASTY_SCORE_VERSION, DYNASTY_SCORE_WEIGHTS } from "../../observer/dynastyScoreSpec.js";
+import { deriveDynastyScore } from "../../observer/dynastyScore.js";
+import { DYNASTY_SCORE_VERSION, DYNASTY_SCORE_WEIGHTS } from "../../governance/dynastyScoreSpec.js";
 import { World } from "../../engine/world/world.js";
 import { baseConfig } from "../helpers/worldFixtures.js";
 
@@ -28,34 +26,21 @@ function copyJournal(world: World): Journal {
 }
 
 describe("dynasty-score-v1 observer (T7)", () => {
-  it("journals the frozen formula contract at epoch open before scoring ticks", () => {
+  it("is read-only: deriving a score does not append an epoch or score record", () => {
     const world = makeWorld();
-    const stateBefore = world.state;
-    const headBefore = world.headHash;
-
-    openDynastyScoreEpoch(world, "pilot-1");
-
-    expect(world.state).toEqual(stateBefore);
-    expect(world.headHash).not.toBe(headBefore);
-    const opened = world.entries().at(-1)!;
-    expect(opened.type).toBe("DYNASTY_SCORE_EPOCH_OPENED");
-    expect(opened.payload).toMatchObject({
-      epochId: "pilot-1",
-      version: DYNASTY_SCORE_VERSION,
-      startTick: 0,
-      weights: DYNASTY_SCORE_WEIGHTS,
-      normalizationPopulation: "active-lineages-at-epoch-close",
-      tickAccounting: "resolved-ticks-after-open; alive-at-tick-start",
-    });
-    expect(() => World.restore(copyJournal(world))).not.toThrow();
+    world.tick();
+    const before = world.entries().length;
+    const score = deriveDynastyScore(copyJournal(world), "pilot-1", 0, 1);
+    expect(world.entries()).toHaveLength(before);
+    expect(world.entries().some((entry) => entry.type.startsWith("DYNASTY_SCORE"))).toBe(false);
+    expect(score.version).toBe(DYNASTY_SCORE_VERSION);
+    expect(score.sourceJournalHead).toBe(world.headHash);
   });
 
   it("scores verified survival evidence and keeps unsupported axes MISSING, not zero", () => {
     const world = makeWorld();
-    openDynastyScoreEpoch(world, "pilot-1");
     world.tick();
-    const recorded = closeDynastyScoreEpoch(world, "pilot-1");
-
+    const recorded = deriveDynastyScore(copyJournal(world), "pilot-1", 0, 1);
     expect(recorded.resolvedTicks).toBe(1);
     expect(recorded.evidenceClass).toBe("verified-journal");
     expect(recorded.scores).toHaveLength(4);
@@ -72,40 +57,33 @@ describe("dynasty-score-v1 observer (T7)", () => {
       expect(score.status).toBe("partial");
     }
     expect(recorded.excludedEvidence.join(" ")).toContain("proposals");
-    expect(world.entries().at(-1)?.type).toBe("DYNASTY_SCORE_EPOCH_CLOSED");
-    expect(world.entries().at(-1)?.payload).not.toHaveProperty("score");
-    expect(World.restore(copyJournal(world)).tickNumber).toBe(world.tickNumber);
   });
 
-  it("re-derives the recorded close identically after JSONL save/load", () => {
+  it("re-derives identically after JSONL save/load and journal copying", () => {
     const world = makeWorld();
-    openDynastyScoreEpoch(world, "pilot-1");
     world.tick();
-    const recorded = closeDynastyScoreEpoch(world, "pilot-1");
-    const journal = copyJournal(world);
+    const source = copyJournal(world);
     const path = join(mkdtempSync(join(tmpdir(), "nexus-dynasty-score-")), "journal.jsonl");
-    journal.saveToFile(path);
+    source.saveToFile(path);
     const loaded = Journal.loadFromFile(path);
-
-    expect(deriveDynastyScore(loaded, "pilot-1")).toEqual(recorded);
+    const expected = deriveDynastyScore(source, "pilot-1", 0, 1);
+    expect(deriveDynastyScore(loaded, "pilot-1", 0, 1)).toEqual(expected);
+    expect(deriveDynastyScore(copyJournal(world), "pilot-1", 0, 1)).toEqual(expected);
   });
 
-  it("keeps close-time active lineages fixed when later ticks change the world", () => {
+  it("keeps an explicit close boundary stable when later ticks change the world", () => {
     const world = makeWorld(1);
-    openDynastyScoreEpoch(world, "pilot-1");
     world.tick();
-    const recorded = closeDynastyScoreEpoch(world, "pilot-1");
+    const source = copyJournal(world);
+    const recorded = deriveDynastyScore(source, "pilot-1", 0, 1);
     for (let tick = 0; tick < 7; tick++) world.tick();
-
-    expect(deriveDynastyScore(copyJournal(world), "pilot-1")).toEqual(recorded);
-    expect(deriveDynastyScore(copyJournal(world), "pilot-1").activeLineages).toHaveLength(4);
+    expect(deriveDynastyScore(copyJournal(world), "pilot-1", 0, 1)).toEqual(recorded);
+    expect(recorded.activeLineages).toHaveLength(4);
   });
 
   it("marks survival MISSING for an epoch with no resolved ticks", () => {
     const world = makeWorld();
-    openDynastyScoreEpoch(world, "empty-epoch");
-    const recorded = closeDynastyScoreEpoch(world, "empty-epoch");
-
+    const recorded = deriveDynastyScore(copyJournal(world), "empty-epoch", 0, 0);
     expect(recorded.resolvedTicks).toBe(0);
     expect(recorded.scores[0].axes.survival).toMatchObject({ status: "missing", rawValue: null });
     expect(recorded.scores[0].observedWeightedAverage).toBeNull();
@@ -114,29 +92,10 @@ describe("dynasty-score-v1 observer (T7)", () => {
     expect(recorded.scores[0].status).toBe("missing");
   });
 
-  it("rejects a close marker whose source head was edited", () => {
+  it("rejects an epoch boundary that is not backed by committed journal ticks", () => {
     const world = makeWorld();
-    openDynastyScoreEpoch(world, "pilot-1");
+    expect(() => deriveDynastyScore(copyJournal(world), "bad", 1, 1)).toThrow(/startTick cannot exceed/);
     world.tick();
-    closeDynastyScoreEpoch(world, "pilot-1");
-    const original = copyJournal(world).entries();
-    const altered = new Journal();
-    for (const entry of original) {
-      const payload = { ...entry.payload };
-      if (entry.type === "DYNASTY_SCORE_EPOCH_CLOSED") {
-        payload.sourceJournalHead = "edited-source-head";
-      }
-      altered.append({ tick: entry.tick, type: entry.type, actor: entry.actor, payload });
-    }
-
-    expect(altered.verify().ok).toBe(true);
-    expect(() => deriveDynastyScore(altered, "pilot-1")).toThrow(/source journal head/);
-  });
-
-  it("refuses overlapping or duplicate epoch opens", () => {
-    const world = makeWorld();
-    openDynastyScoreEpoch(world, "pilot-1");
-    expect(() => openDynastyScoreEpoch(world, "pilot-2")).toThrow(/already open/);
-    expect(() => openDynastyScoreEpoch(world, "pilot-1")).toThrow(/already open/);
+    expect(() => deriveDynastyScore(copyJournal(world), "bad", 0, 2)).toThrow(/past the latest committed tick/);
   });
 });

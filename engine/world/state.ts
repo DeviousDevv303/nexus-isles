@@ -12,7 +12,9 @@ import type { SuccessionInstrument } from "../../lineage/succession.js";
 import { validateMap, type MapSpec } from "./map.js";
 import { CONTENTION_FORMULA_ID, KNOWN_FORMULAS } from "./contention.js";
 
+// PROVISIONAL — owner-ratification item (registry: contention-v1-constants).
 export const DEFAULT_MAX_EFFORT = 3;
+// PROVISIONAL — owner-ratification item (registry: map-v1).
 /** Map worlds: default observation radius in hops. A Phase 1 proposal. */
 export const DEFAULT_INTEL = 1;
 /** Map worlds: the highest intel any resident may have. */
@@ -136,6 +138,7 @@ export interface WorldState {
   nextInstrumentSeq: number;
 }
 
+// PROVISIONAL — owner-ratification item (registry: reproduction-v0).
 export const DEFAULT_REPRODUCTION_COST = 4;
 export const lineageIdFor = (founderId: string): string => `lineage:${founderId}`;
 
@@ -435,6 +438,14 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
+    case "OWNER_SUBMISSION_REJECTED": {
+      // A refused console submission, recorded as an occurrence. No world
+      // effect. It lands at the first tick boundary after it was refused.
+      if (p.status !== "rejected" || typeof p.code !== "string" || nonNeg(p, "submittedAtTick") !== entry.tick - 1 || entry.tick !== state.tick) {
+        throw new Error("OWNER_SUBMISSION_REJECTED invariant violated");
+      }
+      return state;
+    }
     case "EXTERNAL_EVENT": {
       // AA9: an owner-console intervention, recorded verbatim. No console
       // class has an executable effect yet, so this is audit-only. It must
@@ -492,8 +503,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     case "REPRODUCTION_FAILED":
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
-    case "DYNASTY_SCORE_EPOCH_OPENED":
-    case "DYNASTY_SCORE_EPOCH_CLOSED":
+    case "DRIVER_ACTION_REJECTED":
       return state;
     default:
       throw new Error(`Unknown journal entry type: ${entry.type}`);

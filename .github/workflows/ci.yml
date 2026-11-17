@@ -1,0 +1,29 @@
+# Nexus Isles CI. Owner ruling 2026-11-17 (#235 comment 6937254884, item 5):
+# review gates RG-1..RG-5 become enforceable checks. They run inside the test
+# suite (tests/governance/rg-gates.test.ts), so this job is the gate.
+#
+# This file makes the checks RUN on every push and PR. Making them BLOCK a
+# merge is a repository setting only the owner can turn on: Settings ->
+# Branches -> protect `main` -> require the "gate" status check.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Tests, including the RG-1..RG-5 and E6 governance gates
+        run: npx vitest run

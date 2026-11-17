@@ -1,3 +1,4 @@
+// registry: seat-identity-v1 · registry: chat-restart-loss
 // T5 — participant ↔ own-AI chat box. Two principals, two seats, both
 // connection shapes (Tier 0 Nexus in-process; a hosted AI via the gateway).
 // Acceptance (#235, 6929860889): each principal's messages reach only their
@@ -12,7 +13,7 @@ import type { Action } from "../../seats/seatProvider.js";
 import { NexusEmbeddedSeat } from "../../residents/nexus/embeddedSeat.js";
 import type { WorldConfig } from "../../engine/world/state.js";
 import { World } from "../../engine/world/world.js";
-import { TEST_BACKEND } from "../helpers/worldFixtures.js";
+import { TEST_BACKEND, rebuildJournal } from "../helpers/worldFixtures.js";
 
 function cfg(): WorldConfig {
   return {
@@ -193,6 +194,20 @@ describe("T5 chat box — privacy and lifecycle", () => {
     expect(world.state.residents.bravo.alive).toBe(false);
     expect(() => chat.say(p.token, "after")).toThrow(ChatError);
     expect(bodies(chat.transcript(p.token))).toEqual(["before"]);
+  });
+
+  it("PROVISIONAL chat-restart-loss: a restarted world comes back with no enrolments or messages", async () => {
+    const { world, chat, owner } = await setup();
+    chat.say(owner.token, "remember this");
+    world.tick();
+    const restarted = World.restore(rebuildJournal(world));
+    const fresh = new ChatBox(restarted, new CredentialRegistry());
+    // the old principal token means nothing to the restarted world
+    expect(() => fresh.transcript(owner.token)).toThrow(AuthError);
+    const again = fresh.enrol("owner", "nexus");
+    expect(fresh.transcript(again.token)).toEqual([]);
+    // and the conversation was never in the journal to begin with
+    expect(JSON.stringify(restarted.entries())).not.toContain("remember this");
   });
 
   it("messages carry attribution to the sending credential", async () => {

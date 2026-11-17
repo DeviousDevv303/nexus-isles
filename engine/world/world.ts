@@ -34,9 +34,8 @@ import {
   type WorldState,
 } from "./state.js";
 import { executeSuccession } from "../../lineage/succession.js";
-import { validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
+import { ConsoleRejection, validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
 import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
-import type { DynastyScoreEpochClosePayload, DynastyScoreEpochOpenPayload } from "../../observer/dynastyScoreSpec.js";
 
 interface Received {
   seatId: string;
@@ -73,6 +72,8 @@ export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
+  private pendingRejections: Record<string, unknown>[] = [];
+  private pendingDriverRejections: Record<string, unknown>[] = [];
 
   private constructor(
     private readonly journal: Journal,
@@ -116,9 +117,7 @@ export class World {
     for (let i = 0; i < entries.length; i++) {
       if (entries[i].type === "TICK_COMMIT") lastCommit = i;
     }
-    if (lastCommit < 0 || entries.slice(lastCommit + 1).some((entry) =>
-      entry.type !== "DYNASTY_SCORE_EPOCH_OPENED" && entry.type !== "DYNASTY_SCORE_EPOCH_CLOSED",
-    )) {
+    if (lastCommit < 0 || entries.length - 1 !== lastCommit) {
       throw new Error("Journal ends mid-tick (no closing TICK_COMMIT)");
     }
     let state: WorldState | null = null;
@@ -172,47 +171,6 @@ export class World {
     return this.journal.entries();
   }
 
-  /** Append a version-pinned observer contract at a committed epoch boundary. */
-  openDynastyScoreEpoch(payload: DynastyScoreEpochOpenPayload): void {
-    const entries = this.journal.entries();
-    const tail = entries[entries.length - 1];
-    if (!tail || (tail.type !== "TICK_COMMIT" && tail.type !== "DYNASTY_SCORE_EPOCH_CLOSED")) {
-      throw new Error("dynasty-score epoch can open only at a committed boundary");
-    }
-    if (!payload.epochId || payload.startTick !== this.st.tick) {
-      throw new Error("dynasty-score epoch open payload does not match the current world boundary");
-    }
-    const opened = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_OPENED")
-      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
-    const closed = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_CLOSED")
-      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
-    if ([...opened].some((id) => !closed.has(id))) throw new Error("a dynasty-score epoch is already open");
-    if (opened.has(payload.epochId)) throw new Error(`dynasty-score epoch ${payload.epochId} already exists`);
-    this.emit("DYNASTY_SCORE_EPOCH_OPENED", "engine", payload as unknown as Record<string, unknown>);
-    this.persist();
-  }
-
-  /** Append an audit-only close marker; scores are never stored in the journal. */
-  closeDynastyScoreEpoch(payload: DynastyScoreEpochClosePayload): void {
-    const entries = this.journal.entries();
-    const tail = entries[entries.length - 1];
-    if (!tail || (tail.type !== "TICK_COMMIT" && tail.type !== "DYNASTY_SCORE_EPOCH_OPENED")) {
-      throw new Error("dynasty-score epoch can close only at a committed boundary");
-    }
-    const opened = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_OPENED")
-      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
-    const closed = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_CLOSED")
-      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
-    if (!opened.has(payload.epochId) || closed.has(payload.epochId)) {
-      throw new Error(`dynasty-score epoch ${payload.epochId} is not open`);
-    }
-    if (payload.endTick !== this.st.tick || payload.sourceJournalHead !== this.journal.headHash()) {
-      throw new Error("dynasty-score close payload does not match the current journal boundary");
-    }
-    this.emit("DYNASTY_SCORE_EPOCH_CLOSED", "engine", payload as unknown as Record<string, unknown>);
-    this.persist();
-  }
-
   /**
    * The last observation the engine delivered to this seat (step 5), read
    * from the journal itself — restart-safe, no in-memory cache. Null if the
@@ -263,6 +221,15 @@ export class World {
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }
 
+  /** Queue a driver refusal; only its safe reason and backend provenance enter the journal. */
+  recordDriverRefusal(seatId: string, backend: BackendRef, reason: string): void {
+    this.pendingDriverRejections.push({
+      seat: seatId,
+      backend: { providerId: backend.providerId, version: backend.version },
+      reason,
+    });
+  }
+
   /**
    * AA9: queue an owner-console intervention against a running world. All
    * console laws are checked now (draft, rollback, C3 double-confirm, and
@@ -274,10 +241,36 @@ export class World {
    * Queued events, like queued actions, are lost on restart.
    */
   submitConsoleEvent(submission: ConsoleSubmission): void {
-    this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    try {
+      this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    } catch (err) {
+      // Owner ruling 2026-11-17 (#235, 6937254884, item 3): a refused
+      // submission is still an occurrence. It is journaled as
+      // OWNER_SUBMISSION_REJECTED at the next tick boundary — reason,
+      // provenance and the submission as given — with no world effect and
+      // nothing rewritten. The operator still gets the refusal now.
+      const code = err instanceof ConsoleRejection ? err.code : "malformed_submission";
+      let given: unknown;
+      try {
+        given = JSON.parse(JSON.stringify(submission ?? null));
+      } catch {
+        given = null;
+      }
+      this.pendingRejections.push({
+        status: "rejected",
+        code,
+        reason: err instanceof Error ? err.message : String(err),
+        submittedAtTick: this.st.tick,
+        submission: given,
+      });
+      throw err;
+    }
   }
 
   private stepConsoleEvents(): void {
+    const refused = this.pendingRejections;
+    this.pendingRejections = [];
+    for (const payload of refused) this.emit("OWNER_SUBMISSION_REJECTED", "owner-console", payload);
     const due = this.pendingConsole.filter((p) => p.affectsTick === this.st.tick);
     this.pendingConsole = this.pendingConsole.filter((p) => p.affectsTick !== this.st.tick);
     for (const payload of due) this.emit("EXTERNAL_EVENT", "owner-console", payload);
@@ -302,6 +295,10 @@ export class World {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
+    for (const payload of this.pendingDriverRejections) {
+      this.emit("DRIVER_ACTION_REJECTED", "seat-driver", payload);
+    }
+    this.pendingDriverRejections = [];
     this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3

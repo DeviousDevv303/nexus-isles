@@ -36,6 +36,24 @@ export interface ConsoleSubmission {
   affectsTick: number;
 }
 
+export type ConsoleRejectionCode =
+  | "query_not_intervention"
+  | "unconfirmed_draft"
+  | "rollback_forbidden"
+  | "c3_double_confirm_required"
+  | "c3_reason_required"
+  | "tick_already_resolved";
+
+/** A refused console submission. The message is what the operator sees. */
+export class ConsoleRejection extends Error {
+  constructor(
+    readonly code: ConsoleRejectionCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 /** Highest tick the world core has committed (TICK_COMMIT), or -1 for an empty journal. */
 export function lastResolvedTick(entries: readonly { type: string; tick: number }[]): number {
   return entries.filter((e) => e.type === "TICK_COMMIT").reduce((max, e) => Math.max(max, e.tick), -1);
@@ -50,24 +68,25 @@ export function validateConsoleSubmission(
   lastResolved: number,
 ): Record<string, unknown> {
   if (submission.consoleClass === "C0") {
-    throw new Error("C0 is a query — read-only, never an intervention event");
+    throw new ConsoleRejection("query_not_intervention", "C0 is a query — read-only, never an intervention event");
   }
   if (!submission.confirmed) {
-    throw new Error("unconfirmed console input is a draft, not an event");
+    throw new ConsoleRejection("unconfirmed_draft", "unconfirmed console input is a draft, not an event");
   }
   if (/rollback|roll back|undo tick/i.test(submission.intent)) {
-    throw new Error("the console has no rollback — corrections are new events");
+    throw new ConsoleRejection("rollback_forbidden", "the console has no rollback — corrections are new events");
   }
   if (submission.consoleClass === "C3") {
     if (!submission.doubleConfirmed) {
-      throw new Error("C3 seat operations require double confirmation");
+      throw new ConsoleRejection("c3_double_confirm_required", "C3 seat operations require double confirmation");
     }
     if (!submission.reason || submission.reason.trim().length === 0) {
-      throw new Error("C3 seat operations require a typed reason");
+      throw new ConsoleRejection("c3_reason_required", "C3 seat operations require a typed reason");
     }
   }
   if (!Number.isSafeInteger(submission.affectsTick) || submission.affectsTick <= lastResolved) {
-    throw new Error(
+    throw new ConsoleRejection(
+      "tick_already_resolved",
       `tick ${submission.affectsTick} already resolved — console events land before the tick they affect`,
     );
   }

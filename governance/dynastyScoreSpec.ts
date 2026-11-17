@@ -1,9 +1,10 @@
 // Directive T7 (Issue #235): version-pinned dynasty-score-v1 observer
 // contract. Key decision: seal weights, axes, normalization, and tick
-// conventions into the journal at epoch open so future code cannot silently
+// conventions for pure journal projection so future code cannot silently
 // reinterpret history. Unfinished: territory evidence remains MISSING and
 // successor continuity remains held for the owner's E6 audit; this spec does
 // not ratify those interpretations or add scoring behavior.
+// PROVISIONAL — owner-ratification item (registry: dynasty-score-v1).
 
 export const DYNASTY_SCORE_VERSION = "dynasty-score-v1" as const;
 
@@ -17,10 +18,7 @@ export const DYNASTY_SCORE_WEIGHTS = Object.freeze({
 
 export type DynastyScoreAxis = keyof typeof DYNASTY_SCORE_WEIGHTS;
 
-/**
- * The complete scoring contract is sealed into the journal when an epoch
- * opens. Later code must not silently reinterpret the historical score.
- */
+/** Immutable contract read by the observer; it is not written into the world journal. */
 export interface DynastyScoreEpochOpenPayload {
   epochId: string;
   version: typeof DYNASTY_SCORE_VERSION;
@@ -32,13 +30,6 @@ export interface DynastyScoreEpochOpenPayload {
   activeLineagesAtOpen: string[];
   axisDefinitions: Record<DynastyScoreAxis, string>;
   unresolvedInterpretations: string[];
-}
-
-export interface DynastyScoreEpochClosePayload {
-  epochId: string;
-  endTick: number;
-  /** Journal head immediately before this close record was appended. */
-  sourceJournalHead: string;
 }
 
 export const DYNASTY_SCORE_AXIS_DEFINITIONS: Record<DynastyScoreAxis, string> = Object.freeze({
