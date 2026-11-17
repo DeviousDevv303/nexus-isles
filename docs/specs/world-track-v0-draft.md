@@ -3,6 +3,8 @@
 **Status: DRAFT for design review. Nothing here is ratified, and nothing here may be built from.**
 Drafted by Claude's lane, 2026-11-17, against main `49a26b0`.
 
+Revision 2: folds in ChatGPT's five requirements for the institution model and fiction safeguard (relayed by the owner 2026-11-17: approved for specification drafting and adversarial audit, not implementation or ratification). Marked **[GPT-n]** below.
+
 Inputs (all on DeviousDevv303/forgeclaw#235):
 - Proposals not yet ratified: environment separation and Nexus Earth Season 1 (6937583035); Quinn Directorate (6937691051); institution model and fiction safeguard (Kimi's draft ruling text, relayed by the owner 2026-11-17).
 - Owner directions given: Qwen runs the world, Nexus keeps the lineage only (6937641173). Its sub-decision (a)/(b)/(c) is still open.
@@ -31,7 +33,7 @@ Proposed constitutional annex (for Kimi's drafting lane): *"The environment engi
 
 ## 2. Environment system (Layer 1)
 
-**Rule for every circumstance.** A circumstance changes world parameters for a region, an edge or the whole map. It never names a resident, lineage or institution, and its inputs never include one. That makes "the engine never picks a target" a checkable property: an RG-5-style gate on the environment module's imports and inputs.
+**Rule for every circumstance.** A circumstance changes world parameters for a region, an edge or the whole map. It never names a resident, lineage or institution, and its inputs never include one. **[GPT-3]** It also never stands in for a choice any seat could make: if an institution could plausibly decide it, it is an institutional action, not a circumstance. Every circumstance carries its seed stream and replays bit-for-bit (AT-18). That makes "the engine never picks a target" a checkable property: an RG-5-style gate on the environment module's imports and inputs.
 
 **Proposed circumstances.** Each draws from its own `rngFor(seed, tick, "env:<kind>:<place>")` stream and is journaled with explicit deltas before it takes effect.
 
@@ -42,7 +44,9 @@ Proposed constitutional annex (for Kimi's drafting lane): *"The environment engi
 | Heat | Raises satiety decay in a region for N ticks |
 | Dust storm | Lowers observation radius in a region for N ticks |
 | Monsoon flood | Sets a river edge's or underpass's crossing capacity to 0 for N ticks |
-| Checkpoint posture | Raises or lowers a bridge's crossing capacity for N ticks |
+| Traffic volume | Raises or lowers background demand on a bridge (how crowded it is), never its staffing |
+
+**Correction in revision 2 [GPT-3]:** revision 1 listed "checkpoint posture" (raising or lowering a bridge's capacity) as an engine circumstance. That was a disguised institutional decision: how a port of entry is staffed and run is a choice, and choices belong to seats. It moves to the federal seat (§4) as a decision. The engine keeps only what nobody decides: weather, season, daylight, and background traffic.
 
 **Requirements carried from the record:**
 - **Quiet days are possible.** Muse (6937504033): an event engine that can only escalate fails. Every distribution must include "nothing happens".
@@ -71,7 +75,16 @@ Under (b), with Qwen generating weather directly, §2's determinism and AT-18 re
 
 ## 4. Institutions (Layer 2)
 
-Kimi's three-layer model, Phase 1 scope: **three institution seats**, municipal police, one federal presence, one rival organization.
+Kimi's three-layer model, Phase 1 scope: **three institution seats**, municipal police, one federal presence, one rival organization. **[GPT-5]** Three is a ceiling; any expansion needs the owner's word.
+
+**[GPT-1] Independent agency.** Each institution seat has:
+- its own objectives and resources, held in its own state;
+- its own AI decision process: a separate seat and driver, never one model running several institutions;
+- validator-bound actions only;
+- a persistent institutional history, derivable from the journal;
+- no privileged access to another institution's private state. Institutions observe the world under the same AT-06 radius rules as residents, and talk to each other only through the T4 channels.
+
+Checkable: no two institution seats share a backend instance or a credential, and no institution's observation includes another's private state.
 
 | Question | Draft answer | Why |
 |---|---|---|
@@ -81,6 +94,7 @@ Kimi's three-layer model, Phase 1 scope: **three institution seats**, municipal 
 | Can Quinn direct them? | **No.** Quinn proposes circumstances; institutions decide for themselves | GPT's safeguard 2: institutions are never Quinn's puppets |
 | What can they do? | Phase 1: the existing verbs only. Any institution-specific verb (inspect, detain, bribe) is its own owner ruling, abstract by the fiction rules | Deep, not wide; nothing banned except cheating, but nothing invented without a ruling |
 | How many seat drivers? | Three more to build and audit, on top of the residents' | Each is a real AI seat, not a script |
+| What is the federal seat's jurisdiction? **[GPT-2]** | Must be written down before it's built. CBP Office of Field Operations runs the official ports of entry (the bridges); U.S. Border Patrol operates between them. They must not be merged into one agency for convenience | See the conflict in §6 item 6 |
 
 ---
 
@@ -93,6 +107,8 @@ Kimi's draft safeguard:
 - all organizations fictional;
 - mechanics abstract (a crossing has a cost and a risk, never a method);
 - real communities depicted with dignity.
+
+**[GPT-4] Historical dignity.** Real geography is permitted; the population, the organizations and the unfolding history are fictional. No actual cartel incident, real victim or identifiable person is recreated as simulation content, fictionalised or not.
 
 Enforceable parts:
 - **Names registry.** Every organization and person name used as content lives in a registry. A CI gate fails any name not in it.
@@ -110,6 +126,13 @@ Enforceable parts:
 2. **Phase 1 scope.** The ratified brief is one island and 3+ residents. Nexus Earth Season 1 re-briefs to a deep Juárez region, and the institution ruling adds three seats. Until the owner rules the re-brief, the brief governs (Muse, 6937583035).
 3. **The map.** T6 has three bridges plus a river crossing. Real Juárez–El Paso has more crossings; Muse notes Stanton–Lerdo is missing from T6 (6937448492). "Real geography from versioned datasets" means replacing `juarez-v1`, not tuning it. Owner's call whether Season 1 is real geography or the abstract map.
 4. **Who is the referee?** The owner's direction makes Quinn a referee that "makes sure nobody is cheating". Muse's boundary is that Guardian (code) judges and Quinn only reports. This draft follows Muse. The owner should confirm that "referee" means *reports*, not *rules*.
+6. **[GPT-2 vs GPT-5] The federal seat and the three-seat ceiling.** If OFO and Border Patrol must stay distinct, "one federal presence" is either:
+   - (a) OFO only, running the bridges, with nothing between the ports in Phase 1 (fits the map: every border edge is a bridge except the Anapra river crossing);
+   - (b) Border Patrol only, between the ports, with the bridges left as circumstances (but bridge operation is a decision, which GPT-3 forbids);
+   - (c) two federal seats, which is four institutions and breaks the three-seat ceiling.
+
+   This draft recommends (a). The Anapra river crossing then has no federal actor in Phase 1, which should be stated, not hidden. Owner's call.
+7. **Real agencies reopen contradiction 1.** GPT-2 names CBP OFO and Border Patrol, which presumes real public-agency structures. That conflicts with Kimi's "all organizations fictional" unless the owner adopts the middle reading in item 1.
 5. **Unattended operation** (GPT safeguard 5): a scheduler needs crash recovery, checkpoint verification, duplicate-tick prevention, resource limits and an emergency stop. Two known gaps block it today:
    - the torn-tail journal load;
    - queued actions lost on restart.
