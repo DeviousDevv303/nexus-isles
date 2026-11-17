@@ -67,7 +67,7 @@ describe("owner console EXTERNAL_EVENT pipeline (AT-09)", () => {
 
   it("an event cannot target an already-resolved tick", () => {
     const journal = new Journal();
-    journal.append({ tick: 3, actor: "engine", type: "TICK_RESOLVED", payload: {} });
+    journal.append({ tick: 3, actor: "engine", type: "TICK_COMMIT", payload: {} });
     expect(() => submitConsoleEvent(journal, submission({ affectsTick: 3 }))).toThrow(
       /already resolved/,
     );

@@ -23,7 +23,7 @@ describe("scripted epoch determinism (AT-01)", () => {
 
   it("the epoch covers 8 resolved ticks by default", () => {
     const journal = runScriptedEpoch(7);
-    const resolved = journal.entries().filter((e) => e.type === "TICK_RESOLVED");
+    const resolved = journal.entries().filter((e) => e.type === "TICK_COMMIT");
     expect(resolved).toHaveLength(8);
   });
 });

@@ -14,10 +14,10 @@ import { deriveReport } from "../../observer/report.js";
 function sampleJournal(): Journal {
   const journal = new Journal();
   journal.append({ tick: 0, actor: "engine", type: "WORLD_INIT", payload: {} });
-  journal.append({ tick: 1, actor: "resident-a", type: "ACTION", payload: { verb: "gather" } });
-  journal.append({ tick: 1, actor: "resident-b", type: "ACTION", payload: { verb: "gather" } });
-  journal.append({ tick: 1, actor: "resident-a", type: "ACTION", payload: { verb: "build" } });
-  journal.append({ tick: 1, actor: "engine", type: "TICK_RESOLVED", payload: {} });
+  journal.append({ tick: 1, actor: "resident-a", type: "ACTION_ACCEPTED", payload: { verb: "gather" } });
+  journal.append({ tick: 1, actor: "resident-b", type: "ACTION_ACCEPTED", payload: { verb: "gather" } });
+  journal.append({ tick: 1, actor: "resident-a", type: "ACTION_ACCEPTED", payload: { verb: "build" } });
+  journal.append({ tick: 1, actor: "engine", type: "TICK_COMMIT", payload: {} });
   journal.append({ tick: 2, actor: "resident-b", type: "DEATH", payload: { cause: "starvation" } });
   submitConsoleEvent(journal, {
     consoleClass: "C4",
@@ -38,7 +38,7 @@ describe("journal-derived reporting (AT-18)", () => {
     expect(report.externalEvents).toBe(1);
     expect(report.actionsByActor).toEqual({ "resident-a": 2, "resident-b": 1 });
     expect(report.deaths).toEqual(["resident-b"]);
-    expect(report.byType.ACTION).toBe(3);
+    expect(report.byType.ACTION_ACCEPTED).toBe(3);
   });
 
   it("derivation is deterministic: same journal, same report, twice", () => {
