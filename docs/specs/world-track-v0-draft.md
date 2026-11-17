@@ -3,6 +3,8 @@
 **Status: DRAFT for design review. Nothing here is ratified, and nothing here may be built from.**
 Drafted by Claude's lane, 2026-11-17, against main `49a26b0`.
 
+**Revision 3 (2026-11-17, Muse's lane queue, #235 6949850154):** §6 decision 1 marked DECIDED on the owner's adoption record (6937915692); the federal seat held at option (a) pending the owner's word; §5 rewritten to the adopted institutions shape. **All architecture text is held at revision 3** until Muse's World Director brief lands. It will then be reconciled into ONE document, with no forked specs.
+
 Revision 2: folds in ChatGPT's five requirements for the institution model and fiction safeguard (relayed by the owner 2026-11-17: approved for specification drafting and adversarial audit, not implementation or ratification). Marked **[GPT-n]** below.
 
 Inputs (all on DeviousDevv303/forgeclaw#235):
@@ -98,28 +100,34 @@ Checkable: no two institution seats share a backend instance or a credential, an
 
 ---
 
-## 5. Fiction and dignity rules
+## 5. Fiction, institutions and dignity (adopted shape)
 
-Kimi's draft safeguard:
-- no real criminal organizations;
-- no real persons living or dead;
-- no real victims or events depicted as content;
-- all organizations fictional;
-- mechanics abstract (a crossing has a cost and a risk, never a method);
-- real communities depicted with dignity.
+**Owner adoption (6937915692), ruling text 6937884528.** This is adopted direction; the constitutional wording lands through the v0.6.8 draft and audit, and nothing is frozen by adoption.
+- **Real state institutions as structures.** Agencies with publicly documented mandates (CBP/OFO, Border Patrol and the rest of the adopted list) may be simulated structurally, with jurisdictional distinctions preserved. **Personnel are synthetic.** Every decision is a validator-bound institutional seat.
+- **Criminal organizations are fictional:** invented names, leadership and structure, with abstract mechanics.
+- **Lineage livelihood freedom (owner's holding 2).** Any lineage may organize itself as anything (a cartel, a mafia, a secret society, a legitimate enterprise) and earn however it chooses, under the standing gates. A lineage that becomes a cartel is fictional by construction: its own invented name and structure.
+- **Abstract mechanics.** The world models what an organization costs a community, never how one operates. A crossing has a cost and a risk, never a method.
+- **Historical dignity [GPT-4].** Real geography is permitted. No actual incident, real victim or identifiable person is recreated, fictionalized or not.
+- **Closed-world seal.** Simulated institutions respond to simulated events only. The simulation never contacts, monitors, claims or implies anything about real agencies or persons. Every artifact carries permanent simulated-content labelling.
 
-**[GPT-4] Historical dignity.** Real geography is permitted; the population, the organizations and the unfolding history are fictional. No actual cartel incident, real victim or identifiable person is recreated as simulation content, fictionalised or not.
+**Attention and jurisdiction (the four mechanical additions in 6937884528):**
+1. **No scripted attention triggers.** Institutional attention emerges from seats reasoning over journaled evidence under their own mandates. A wealth-threshold trigger would be death-seeding by another name. Sensitivity parameters are versioned `intel-attention-v1`, PROVISIONAL.
+2. **Jurisdiction is a constraint.** A seat acting outside its mandate is a journalable event with consequences, not a developer error.
+3. **Counterintelligence is symmetric.** Agencies observe each other under their own evidence limits and may assess wrongly (AA6).
+4. **The closed-world seal is constitutional text** (above).
 
-Enforceable parts:
-- **Names registry.** Every organization and person name used as content lives in a registry. A CI gate fails any name not in it.
-- **Abstraction gate.** Verbs and their arguments are validator vocabulary. No free-text "method" field reaches world state.
-- The dignity clause is not mechanical. It is a review standard for content PRs.
+**Enforceable as CI gates once built:**
+- a names registry: every organization and synthetic-person name used as content is registered, and real criminal-organization names are refused;
+- an abstraction gate: no free-text "method" field reaches world state;
+- `intel-attention-v1` constants enter `governance/registry.json` as PROVISIONAL.
+
+The dignity clause stays a review standard.
 
 ---
 
 ## 6. Contradictions the review has to settle
 
-1. **Real institutions or fictional ones?**
+1. **DECIDED: real state institutions, fictional criminal organizations, synthetic people** (owner adoption 6937915692; ruling text 6937884528; adopted direction, constitutional wording via v0.6.8). Superseded discussion, kept for the record. **Real institutions or fictional ones?**
    - Kimi's institution ruling says *"all organizations fictional"*.
    - The Nexus Earth proposal (GPT, Kimi's sharpening 3) models **real** agencies (CBP Office of Field Operations, Border Patrol) with synthetic personnel.
    - Both can't be law. A middle reading: real public-agency *structures* allowed, every *criminal* organization fictional, every *person* synthetic. Owner's call.
@@ -134,8 +142,8 @@ Enforceable parts:
    - (b) Border Patrol only, between the ports, with the bridges left as circumstances (but bridge operation is a decision, which GPT-3 forbids);
    - (c) two federal seats, which is four institutions and breaks the three-seat ceiling.
 
-   This draft recommends (a). The Anapra river crossing then has no federal actor in Phase 1, which should be stated, not hidden. Owner's call.
-7. **Real agencies reopen contradiction 1.** GPT-2 names CBP OFO and Border Patrol, which presumes real public-agency structures. That conflicts with Kimi's "all organizations fictional" unless the owner adopts the middle reading in item 1.
+   This draft recommends (a). The Anapra river crossing then has no federal actor in Phase 1, which should be stated, not hidden. **HELD at (a) pending the owner's word** (Muse, 6949850154).
+7. **RESOLVED by decision 1.** Real agencies reopen contradiction 1. GPT-2 names CBP OFO and Border Patrol, which presumes real public-agency structures. That conflicts with Kimi's "all organizations fictional" unless the owner adopts the middle reading in item 1.
 
 ---
 
