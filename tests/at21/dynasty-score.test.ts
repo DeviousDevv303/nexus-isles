@@ -65,12 +65,15 @@ describe("dynasty-score-v1 observer (T7)", () => {
       expect(score.axes.verifiedArtifacts).toMatchObject({ status: "missing", rawValue: null });
       expect(score.axes.successorContinuity).toMatchObject({ status: "missing", rawValue: null });
       expect(score.axes.wealthResilience).toMatchObject({ status: "missing", rawValue: null });
-      expect(score.availableWeight).toBe(DYNASTY_SCORE_WEIGHTS.survival);
-      expect(score.score).toBe(1);
+      expect(score.coverage).toBe(DYNASTY_SCORE_WEIGHTS.survival);
+      expect(score.observedWeightedAverage).toBe(1);
+      expect(score.weightedSubtotal).toBe(DYNASTY_SCORE_WEIGHTS.survival);
+      expect(score.missingAxes).toEqual(["territoryYears", "verifiedArtifacts", "successorContinuity", "wealthResilience"]);
       expect(score.status).toBe("partial");
     }
     expect(recorded.excludedEvidence.join(" ")).toContain("proposals");
     expect(world.entries().at(-1)?.type).toBe("DYNASTY_SCORE_EPOCH_CLOSED");
+    expect(world.entries().at(-1)?.payload).not.toHaveProperty("score");
     expect(World.restore(copyJournal(world)).tickNumber).toBe(world.tickNumber);
   });
 
@@ -105,11 +108,13 @@ describe("dynasty-score-v1 observer (T7)", () => {
 
     expect(recorded.resolvedTicks).toBe(0);
     expect(recorded.scores[0].axes.survival).toMatchObject({ status: "missing", rawValue: null });
-    expect(recorded.scores[0].score).toBeNull();
+    expect(recorded.scores[0].observedWeightedAverage).toBeNull();
+    expect(recorded.scores[0].weightedSubtotal).toBe(0);
+    expect(recorded.scores[0].missingAxes).toHaveLength(5);
     expect(recorded.scores[0].status).toBe("missing");
   });
 
-  it("rejects a self-consistent journal whose recorded score was edited", () => {
+  it("rejects a close marker whose source head was edited", () => {
     const world = makeWorld();
     openDynastyScoreEpoch(world, "pilot-1");
     world.tick();
@@ -119,15 +124,13 @@ describe("dynasty-score-v1 observer (T7)", () => {
     for (const entry of original) {
       const payload = { ...entry.payload };
       if (entry.type === "DYNASTY_SCORE_EPOCH_CLOSED") {
-        const score = structuredClone(payload.score) as { scores: { score: number }[] };
-        score.scores[0].score = 0;
-        payload.score = score;
+        payload.sourceJournalHead = "edited-source-head";
       }
       altered.append({ tick: entry.tick, type: entry.type, actor: entry.actor, payload });
     }
 
     expect(altered.verify().ok).toBe(true);
-    expect(() => deriveDynastyScore(altered, "pilot-1")).toThrow(/does not reproduce/);
+    expect(() => deriveDynastyScore(altered, "pilot-1")).toThrow(/source journal head/);
   });
 
   it("refuses overlapping or duplicate epoch opens", () => {

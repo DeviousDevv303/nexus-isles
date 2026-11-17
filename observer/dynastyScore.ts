@@ -1,6 +1,7 @@
 // Directive T7 (Issue #235): Annex B dynasty-score-v1, projected from a
-// verified and replayed journal only. Key decisions: normalize against active
-// close-time lineages; sqrt normalized axes; renormalize available weights;
+// verified and replayed journal only. Missing axis weight remains in abeyance;
+// every emission reports coverage, observed weighted average, weighted subtotal,
+// and missing axes; no cross-coverage ranking is implied.
 // keep absent evidence MISSING and exclude proposals, predictions, UI, and
 // off-ledger tallies. Unfinished: territory-years remains MISSING, successor
 // continuity is held for the owner's E6 audit, and artifacts/wealth lack
@@ -38,8 +39,10 @@ export type AxisEvidence =
 export interface LineageDynastyScore {
   lineageId: string;
   axes: Record<DynastyScoreAxis, AxisEvidence>;
-  availableWeight: number;
-  score: number | null;
+  coverage: number;
+  observedWeightedAverage: number | null;
+  weightedSubtotal: number;
+  missingAxes: DynastyScoreAxis[];
   status: "partial" | "complete" | "missing";
 }
 
@@ -96,7 +99,7 @@ function openPayload(entries: readonly JournalEntry[], epochId: string): Dynasty
     payload.version !== DYNASTY_SCORE_VERSION ||
     canonicalStringify(payload.weights) !== canonicalStringify(DYNASTY_SCORE_WEIGHTS) ||
     payload.normalizationPopulation !== "active-lineages-at-epoch-close" ||
-    payload.formula !== "sum(renormalized_weight * sqrt(raw / max_active_lineage_raw))" ||
+    payload.formula !== "weighted subtotal uses frozen weights; missing weight remains in abeyance" ||
     payload.tickAccounting !== "resolved-ticks-after-open; alive-at-tick-start" ||
     !Number.isSafeInteger(payload.startTick) ||
     !Array.isArray(payload.activeLineagesAtOpen) ||
@@ -130,13 +133,13 @@ export function openDynastyScoreEpoch(world: World, epochId: string): void {
     startTick: world.tickNumber,
     weights: DYNASTY_SCORE_WEIGHTS,
     normalizationPopulation: "active-lineages-at-epoch-close",
-    formula: "sum(renormalized_weight * sqrt(raw / max_active_lineage_raw))",
+    formula: "weighted subtotal uses frozen weights; missing weight remains in abeyance",
     tickAccounting: "resolved-ticks-after-open; alive-at-tick-start",
     activeLineagesAtOpen: [...entities.civilization.activeLineages],
     axisDefinitions: DYNASTY_SCORE_AXIS_DEFINITIONS,
     unresolvedInterpretations: [
       "successor continuity remains MISSING until the owner selects the heir and own-agency clock reading",
-      "territory-years remains MISSING until validated region-control and improvement events exist",
+      "territory-years is owner-reserved and has no definition in this contract",
       "verified artifacts remains MISSING until third-party citation/use records exist",
       "wealth-resilience remains MISSING until income-source, upkeep, and productive-deployment records exist",
     ],
@@ -213,7 +216,7 @@ function computeScore(
       survival: resolvedTicks > 0
         ? available(memberTicks / resolvedTicks, "verified WORLD_GENESIS/RESIDENT_BORN/DEATH records across committed ticks")
         : missing("epoch-has-no-resolved-ticks"),
-      territoryYears: missing("no-validated-region-control-or-improvement-events; resident position is not control"),
+      territoryYears: missing("owner-reserved; no territory definition is authorized"),
       verifiedArtifacts: missing("no-validated-third-party-citation-or-use-events"),
       successorContinuity: missing("owner-ruling-required-for-heir-and-own-agency-clock-reading"),
       wealthResilience: missing("no-validated-income-source-upkeep-or-productive-deployment-events"),
@@ -249,16 +252,21 @@ function computeScore(
   const scores = activeLineages.map((lineageId): LineageDynastyScore => {
     const axes = Object.fromEntries(AXES.map((axis) => [axis, normalizedByAxis.get(axis)!.get(lineageId)!])) as Record<DynastyScoreAxis, AxisEvidence>;
     const availableAxes = AXES.filter((axis) => axes[axis].status === "available");
-    const availableWeight = availableAxes.reduce((sum, axis) => sum + DYNASTY_SCORE_WEIGHTS[axis], 0);
-    const score = availableWeight === 0
-      ? null
-      : availableAxes.reduce((sum, axis) => sum + DYNASTY_SCORE_WEIGHTS[axis] * (axes[axis] as Extract<AxisEvidence, { status: "available" }>).diminishedValue, 0) / availableWeight;
+    const coverage = availableAxes.reduce((sum, axis) => sum + DYNASTY_SCORE_WEIGHTS[axis], 0);
+    const weightedSubtotal = availableAxes.reduce(
+      (sum, axis) => sum + DYNASTY_SCORE_WEIGHTS[axis] * (axes[axis] as Extract<AxisEvidence, { status: "available" }>).diminishedValue,
+      0,
+    );
+    const observedWeightedAverage = coverage === 0 ? null : weightedSubtotal / coverage;
+    const missingAxes = AXES.filter((axis) => axes[axis].status === "missing");
     return {
       lineageId,
       axes,
-      availableWeight,
-      score,
-      status: availableWeight === 0 ? "missing" : availableAxes.length === AXES.length ? "complete" : "partial",
+      coverage,
+      observedWeightedAverage,
+      weightedSubtotal,
+      missingAxes,
+      status: coverage === 0 ? "missing" : availableAxes.length === AXES.length ? "complete" : "partial",
     };
   });
 
@@ -294,11 +302,10 @@ export function deriveDynastyScore(journal: Journal, epochId: string): DynastySc
     const close = closes[0];
     const prefix = copyToJournal(entries.slice(0, close.index));
     const priorHead = prefix.headHash();
-    const recorded = close.payload.score;
-    const computed = computeScore(prefix, epochId, close.payload.endTick as number, priorHead);
-    if (canonicalStringify(computed) !== canonicalStringify(recorded)) {
-      throw new Error(`recorded score for epoch ${epochId} does not reproduce from its verified journal`);
+    if (close.payload.sourceJournalHead !== priorHead) {
+      throw new Error(`recorded source journal head for epoch ${epochId} does not match its verified journal prefix`);
     }
+    const computed = computeScore(prefix, epochId, close.payload.endTick as number, priorHead);
     return computed;
   }
   return computeScore(journal, epochId, latestCommittedTick(entries), journal.headHash());
@@ -313,7 +320,6 @@ export function closeDynastyScoreEpoch(world: World, epochId: string): DynastySc
     epochId,
     endTick: score.endTick,
     sourceJournalHead,
-    score,
   });
   return score;
 }

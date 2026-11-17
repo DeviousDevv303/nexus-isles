@@ -192,7 +192,7 @@ export class World {
     this.persist();
   }
 
-  /** Append the reproducible close snapshot for the currently open epoch. */
+  /** Append an audit-only close marker; scores are never stored in the journal. */
   closeDynastyScoreEpoch(payload: DynastyScoreEpochClosePayload): void {
     const entries = this.journal.entries();
     const tail = entries[entries.length - 1];
@@ -208,9 +208,6 @@ export class World {
     }
     if (payload.endTick !== this.st.tick || payload.sourceJournalHead !== this.journal.headHash()) {
       throw new Error("dynasty-score close payload does not match the current journal boundary");
-    }
-    if (typeof payload.score !== "object" || payload.score === null) {
-      throw new Error("dynasty-score close payload must include a score record");
     }
     this.emit("DYNASTY_SCORE_EPOCH_CLOSED", "engine", payload as unknown as Record<string, unknown>);
     this.persist();

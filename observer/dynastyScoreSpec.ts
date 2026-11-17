@@ -27,7 +27,7 @@ export interface DynastyScoreEpochOpenPayload {
   startTick: number;
   weights: typeof DYNASTY_SCORE_WEIGHTS;
   normalizationPopulation: "active-lineages-at-epoch-close";
-  formula: "sum(renormalized_weight * sqrt(raw / max_active_lineage_raw))";
+  formula: "weighted subtotal uses frozen weights; missing weight remains in abeyance";
   tickAccounting: "resolved-ticks-after-open; alive-at-tick-start";
   activeLineagesAtOpen: string[];
   axisDefinitions: Record<DynastyScoreAxis, string>;
@@ -39,14 +39,12 @@ export interface DynastyScoreEpochClosePayload {
   endTick: number;
   /** Journal head immediately before this close record was appended. */
   sourceJournalHead: string;
-  /** The score is reproduced from all preceding verified journal entries. */
-  score: unknown;
 }
 
 export const DYNASTY_SCORE_AXIS_DEFINITIONS: Record<DynastyScoreAxis, string> = Object.freeze({
   survival: "member-ticks survived / resolved ticks in the epoch",
-  territoryYears: "sum over controlled regions of controlled ticks * (1 + 0.1 * improvement count)",
+  territoryYears: "",
   verifiedArtifacts: "journal-verified citations or uses by another party, counted with sqrt",
   successorContinuity: "count of heirs with at least 10 own-agency survival ticks, sqrt-capped",
-  wealthResilience: "0.4 * income diversity + 0.3 * reserve adequacy + 0.3 * productive deployment",
+  wealthResilience: "PROVISIONAL subweights: 0.4 income diversity + 0.3 reserve adequacy + 0.3 productive deployment",
 });
