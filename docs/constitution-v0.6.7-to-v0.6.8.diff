@@ -1,0 +1,159 @@
+diff --git a/docs/constitution-v0.6.7.txt b/docs/constitution-v0.6.8.txt
+index 72cd6e4..869f1f3 100644
+--- a/docs/constitution-v0.6.7.txt
++++ b/docs/constitution-v0.6.8.txt
+@@ -1,5 +1,8 @@
+-NEXUS ISLES — Consolidated Founding Constitution v0.6.7
++NEXUS ISLES — Consolidated Founding Constitution v0.6.8
+ (freeze candidate, audit-precise)
++v0.6.8 prepared 2026-11-17 by the repo lane (Claude), as assigned in the owner rulings record
++(#235 comment 6953955603): ratified Erratum E6 folded into the text; the four v0.6.7 audit items
++(#235 comment 6930329180) applied. Change record in Section XIII. Nothing else in v0.6.7 is altered.
+ Prepared 2026-11-16 ·Seats: Kimi (architecture/adversarial), ChatGPT (v0.2 + four reviews), owner
+ rulings STATUS: PREPARED FOR OWNER APPROVAL — nothing is frozen until the owner
+ explicitly approves. v0.6 per ChatGPT’s fourth review plus errata E1–E4 and E5 (2026-11-16–17):
+@@ -76,7 +79,11 @@ not per-epoch snapshots; (d) artifacts score only when independently verified as
+ territory scores with a development multiplier, not raw area; (f) versioned formula journaled each epoch.
+ Merely producing a successor never makes a dynasty successful. Axis weights (versioned at epoch open
+ as dynasty-score-v1, replaceable only by owner ruling per AA10): survival 0.25, territory-years 0.20,
+-verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15 — defaults tunable at freeze.
++verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15. These weights constitute
++the owner-adopted dynasty-score-v1 baseline. They change only through a subsequent explicit owner
++ruling under AA10, which carries a new formula version and a journaled effective epoch. Influence is
++reserved for dynasty-score-v2 and makes no independent contribution in v1. Missing axes are handled
++by Erratum E6 (Section XIV): weight held in abeyance, never redistributed.
+ AA2 — Diversity conditions, measurable, outcome-neutral. Floor K and tax formula published
+ with inputs and version ID each epoch (diversity-floor-v1). Interventions open conditions only — never
+ alter combat outcomes, resource availability, or survival probabilities. Extinct lineages never revived;
+@@ -245,14 +252,18 @@ AA13 — Longevity and the Escalation Ladder (owner ruling, 2026-11-16:
+ research how to be immortal, you can research how to kill the immortal”). Supersedes the
+ bounded-longevity draft and the absolute-ban recommendation.
+ • Lifespan is conquerable. Age-immortality is researchable at the highest technology generations,
+-at extreme cost, through the ordinary research path. No validator prohibition; the breach-logging
+-class is retired.
++at extreme cost, through the ordinary research path. No validator prohibition on longevity research;
++the breach-logging class for longevity RESEARCH is retired. Cheating is not retired: see the anti-
++cheating clause below.
+ • Age-immortality, defined. The highest longevity tier confers immunity to death-by-time only:
+ (i) aging — chronological deterioration of vital statistics; (ii) age-related deterioration — stat decay
+ attributable to age; (iii) age-related disease events. It confers NO protection against: starvation,
+ dehydration, exposure, combat damage, assassination or counter-weapon effects, poison or sabotage
+ (where the world provides them), catastrophe, or any non-age death cause. The immortal can still
+-starve, still bleed, still lose.
++starve, still bleed, still lose. Disease immunity applies only to disease events the engine explicitly
++classifies as age-related. Mixed-cause events are classified by a deterministic, journaled classification
++rule (versioned with the tech tree); the non-age-related components of a mixed-cause event remain
++capable of causing death.
+ • Escalation symmetry (executable criteria). Every immortality or defense effect in the tech
+ tree must carry, in the same schema, a counter-effect entry that is: (a) independently researchable
+ — no dependency on the defense’s owner; (b) actually capable of defeating the effect in resolution,
+@@ -261,13 +272,29 @@ cost, and deployment requirements.
+ Every pair journals generation, all costs, and deployment
+ requirements with its tech version. The validator checks symmetry at tech-tree freeze; a defense
+ without a qualifying counter is a schema bug and blocks freeze of that tree, not a feature and not
+-an enforceable advantage.
++an enforceable advantage. Each defense/counter pair SHALL include a deterministic resolution test
++demonstrating at least one valid world state in which the counter defeats the defense. The test,
++its inputs, its expected outcome, and the tech-tree version are retained as acceptance evidence. A
++counter that only weakens, delays, or nominally references a defense does not qualify. A passing
++resolution test for every pair is an explicit freeze criterion for that tech tree.
+ • Balance consequences (owned elsewhere in this document): AA1’s sqrt diminishing returns
+ cap survival-axis farming; AA3’s stagnation tax applies to immortals in full — an idle immortal
+ decays like any idle resident; AA1’s successor-continuity axis scores zero for an immortal who never
+ breeds — but no axis is definitional: victory is decided by AA1’s weights and the epoch’s evidence,
+ not by any single axis; AA11.1’s anti-resurrection clause is untouched — the engine never respawns
+ a seat, and Safeguard 3 forbids rollback regardless of lifespan.
++• Anti-cheating (owner ruling: nothing is banned except cheating). Cheating is defined by enu-
++meration: (i) validator circumvention — any attempt to have an action take effect without passing
++validation; (ii) exploits — use of an engine defect to obtain an outcome the rules do not grant;
++(iii) unearned grants — resources, research, ownership, or status not produced by journaled actions
++under the rules; (iv) restoration tricks — any attempt to undo death or loss through rollback, dupli-
++cate identity, checkpoint reload, or backend swap (Safeguard 3, AA11.1); (v) cross-seat imperson-
++ation — acting as, or on the authority of, a seat one does not occupy. Circumvention attempts are
++refused and journaled as ATTEMPTED CONSTITUTIONAL BREACHES, with the seat, the action, and the
++rule invoked. Validator probes — actions whose evident purpose is to map validator behaviour rather
++than act in the world — are journaled as their own class, distinct from breaches and from ordinary
++invalid actions. Legitimate research, however far it reaches (age-immortality included), is journaled
++as research and is never a breach.
+ • The endgame: eternal vigilance is the immortal’s tax. The one who stops watching the horizon
+ is the one the counter-research was built for.
+ III. World Identity — Tactical Military Style (owner directive, 2026-11-16)
+@@ -543,10 +570,14 @@ Adopted weights (ChatGPT independently recommends this set; owner approval recor
+ survival 0.25, territory-years 0.20, verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15.
+ Per epoch e, per lineage L, all inputs from the journal only:
+ 1. Normalize each raw axis against active lineages: norm_i = value_i / max(value across active
+-lineages); missing evidence →axis marked MISSING and its weight is renormalized across available
+-axes (never silently zero-scored; the missing axis is journaled).
++lineages); missing evidence →axis marked MISSING (never silently zero-scored). Its weight is held in
++abeyance and never renormalized, per Erratum E6 (Section XIV), which supersedes this step’s former
++renormalization clause in full.
+ 2. Diminish: axis_score_i = sqrt(norm_i).
+-3. Combine: dynasty_score_e = Σ w_i × axis_score_i.
++3. Combine (as amended by E6): every emission reports coverage = Σ w_i over present axes; observed
++weighted average = Σ w_i × axis_score_i / coverage over present axes; weighted subtotal = observed
++weighted average × coverage; the missing-axis list; the formula version; and raw per-axis values.
++With full coverage the weighted subtotal equals Σ w_i × axis_score_i.
+ 4. Raw definitions: survival = member-ticks survived / ticks in epoch; territory-years = Σ over
+ controlled regions of (controlled ticks × (1 + 0.1 × improvement count)); verified artifacts =
+ journal-verified citations/uses by another party, counted with sqrt; successor continuity = count of
+@@ -619,6 +650,58 @@ Generated by Kimi
+ AT-20 | Backend provenance | Every action journaled with backend identity and version; actions on both
+ sides of a backend transition verify identity/history continuity |
+ Passing Phase 1 = AT-01 through AT-20 green.
+-— prepared by kimi: eliminate ambiguity, not add features. v0.6.7 is the freeze candidate pending the
+-victory-weights word and ChatGPT’s audit of this full text.
++— prepared by kimi: eliminate ambiguity, not add features.
+ Generated by Kimi
++XIII. Change Record (v0.6.7 →v0.6.8)
++Change
++Trigger
++Erratum E6 (Coverage-Disclosed Dynasty Scoring) carried whole as Section XIV; Annex B steps 1 and
++3 amended to match; AA1 cross-references E6
++Owner ruling: E6 ratified, Option 1 (#235 6937184242, formal 6937295727; record 6953955603 item 2)
++AA1 weights sentence: “defaults tunable at freeze” replaced with the owner-adopted dynasty-score-v1
++baseline language; Influence reserved for v2
++v0.6.7 audit item 2 (ChatGPT correction 1, #235 6930329180); record 6953955603 item 3
++AA13 anti-cheating clause: cheating defined by enumeration; circumvention journaled as attempted
++constitutional breach; validator probes their own class; research never a breach. The “breach-
++logging class is retired” sentence narrowed to longevity research
++v0.6.7 audit item 1 (Muse, #235 6930329180); record 6953955603 item 4
++AA13 deterministic resolution test required per defense/counter pair; freeze criterion
++v0.6.7 audit item 3 (ChatGPT correction 2)
++AA13 mixed-cause disease classification rule
++v0.6.7 audit item 4 (ChatGPT correction 3)
++Stale closing line (“pending the victory-weights word”) struck
++v0.6.7 audit, record hygiene
++XIV. Erratum E6 — Coverage-Disclosed Dynasty Scoring (OWNER-RATIFIED)
++Ratified 2026-11-16 (#235 6937184242; formal ruling 6937295727, Option 1: no official rankings across
++different coverage profiles). Text as drafted (Kimi’s final draft incorporating GPT’s refinements, #235
++6937172806). Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
++dynasty-score-v1. This erratum controls wherever the two conflict.
++1. Abeyance, not redistribution. A missing axis holds its ratified weight in abeyance. Its weight is
++never redistributed among present axes, by any mechanism, without explicit owner ratification under
++AA10.
++2. Three reported quantities. Every score emission reports, as distinct fields: coverage (sum of
++present-axis weights); observed weighted average (weighted mean across present axes only, using
++original relative weights); weighted subtotal (observed weighted average × coverage). No partial score
++may be displayed, stored, or transmitted without all three fields and the list of missing axes.
++3. No cross-coverage comparison. Lineages with different coverage profiles are never ranked against
++each other. Any comparison requires identical formula version and identical coverage profile. Displaying
++coverage beside a leaderboard does not make incomparable measurements comparable.
++4. Journal-derived only. Inputs are verified journal events exclusively. Proposals, predictions, self-
++reported achievements, and observer interpretations are not evidence and can never become scored
++facts.
++5. No retroactive completeness. When a missing axis becomes measurable, prior score records are
++unchanged; each record permanently carries the coverage profile at its tick. Historical comparison uses
++like-for-like records only.
++6. Determinism. Same journal + same formula version + same tick →same three quantities, bit-for-bit.
++Replay must reproduce any displayed score (AT-18).
++7. Read-only oracle. Scores are projections. They never enter the action-validation path, never modify
++the journal, never confer legitimacy. The observer interprets evidence; it cannot manufacture it.
++Formula-ID handling (GPT’s formulation, accepted by Kimi): the formula ID/version is declared in an
++authoritative configuration or genesis record (the AA8 precedent — the engine journals the formula ID
++at genesis); the observer reads that declaration and the journal and deterministically recomputes. The
++observer itself never writes.
++Territory (owner ruling 6937295727 item 2): the territorial-control definition remains RESERVED. The
++territory-years axis is reported MISSING until the owner separately ratifies a definition; no lane
++defines or implements one in the meantime.
++v0.6.8 is the freeze candidate. Next: Kimi’s adversarial pass, ChatGPT’s independent inspection of the
++committed artifact, then the freeze record pinning this text’s hash (owner ruling 1, record 6953955603).
