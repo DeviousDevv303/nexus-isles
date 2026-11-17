@@ -14,9 +14,13 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-export type Scope = "act" | "observe" | "channel:send" | "channel:read" | "chat";
+/**
+ * "chat"       the principal's side of their own seat's chat box
+ * "chat:agent" the seat's AI side of that same chat box
+ */
+export type Scope = "act" | "observe" | "channel:send" | "channel:read" | "chat" | "chat:agent";
 
-export const ALL_SCOPES: readonly Scope[] = ["act", "observe", "channel:send", "channel:read", "chat"];
+export const ALL_SCOPES: readonly Scope[] = ["act", "observe", "channel:send", "channel:read", "chat", "chat:agent"];
 
 export interface Principal {
   credentialId: string;
