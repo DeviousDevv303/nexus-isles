@@ -34,7 +34,7 @@ import {
   type WorldState,
 } from "./state.js";
 import { executeSuccession } from "../../lineage/succession.js";
-import { validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
+import { ConsoleRejection, validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
 import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
 
 interface Received {
@@ -72,6 +72,7 @@ export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
+  private pendingRejections: Record<string, unknown>[] = [];
 
   private constructor(
     private readonly journal: Journal,
@@ -226,10 +227,36 @@ export class World {
    * Queued events, like queued actions, are lost on restart.
    */
   submitConsoleEvent(submission: ConsoleSubmission): void {
-    this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    try {
+      this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    } catch (err) {
+      // Owner ruling 2026-11-17 (#235, 6937254884, item 3): a refused
+      // submission is still an occurrence. It is journaled as
+      // OWNER_SUBMISSION_REJECTED at the next tick boundary — reason,
+      // provenance and the submission as given — with no world effect and
+      // nothing rewritten. The operator still gets the refusal now.
+      const code = err instanceof ConsoleRejection ? err.code : "malformed_submission";
+      let given: unknown;
+      try {
+        given = JSON.parse(JSON.stringify(submission ?? null));
+      } catch {
+        given = null;
+      }
+      this.pendingRejections.push({
+        status: "rejected",
+        code,
+        reason: err instanceof Error ? err.message : String(err),
+        submittedAtTick: this.st.tick,
+        submission: given,
+      });
+      throw err;
+    }
   }
 
   private stepConsoleEvents(): void {
+    const refused = this.pendingRejections;
+    this.pendingRejections = [];
+    for (const payload of refused) this.emit("OWNER_SUBMISSION_REJECTED", "owner-console", payload);
     const due = this.pendingConsole.filter((p) => p.affectsTick === this.st.tick);
     this.pendingConsole = this.pendingConsole.filter((p) => p.affectsTick !== this.st.tick);
     for (const payload of due) this.emit("EXTERNAL_EVENT", "owner-console", payload);
