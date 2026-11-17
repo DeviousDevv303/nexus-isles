@@ -5,9 +5,9 @@ three separate statuses. They are never merged into one green claim:
 
 - **Implemented**: the code or text exists.
 - **Tested**: an automated test exercises it.
-- **Independently verified**: a lane other than the builder, or CI, checked it on the record.
+- **Independently verified**: a lane other than the builder, or a named CI run, checked it against this requirement on the record. A status of "verified" always names its evidence (a #235 comment id or a CI run id); otherwise the cell says No.
 
-Base: nexus-isles main `5651670`. "Text" means the requirement is stated in `docs/constitution-v0.6.8.txt`.
+Base: nexus-isles main `5651670`. Section C's gap is built in nexus-isles#31 (head `56c0b3f`, unmerged); this map is not updated for it until #31 merges. "Text" means the requirement is stated in `docs/constitution-v0.6.8.txt`.
 Ratification authorizes implementation only. Nothing here claims freeze, deployment or launch readiness.
 
 ## A. Constitutional text (this PR)
@@ -32,14 +32,14 @@ Ratification authorizes implementation only. Nothing here claims freeze, deploym
 | F-01 normalization wording | See open item 1 | — | — |
 | Directorate seat (Quinn) | **No**: no Quinn or Directorate code exists | — | — |
 | Class 1, environmental circumstances engine (climate-v1) | **No**: tick step 2 "environment" is a placeholder; §12.3 gap | — | — |
-| Class 2, validated agency actions | Yes: `World.submit` → validator → resolve → journal | AT-07, AT-15, AT-19 suites | CI on main |
+| Class 2, validated agency actions | Yes: `World.submit` → `engine/world/validator.ts` → resolve → journal (`engine/world/world.ts` tick steps 6–11) | AT-07, AT-15, AT-19 suites | **No**: CI runs these on every merge, but no named run or reviewer has checked them against R2/F-10 |
 | F-11(b): no live research input | Holds by absence: no Qwen or research code exists | — | — |
 | R9 provenance: prompt hash and input references | **No**: actions carry backend identity and version only (AT-20); gap disclosed in 6954619011 | — | — |
 | R9: replay survives deletion of the deliberation store (F-09) | Yes (inherent) | `tests/aa7/replay-after-deletion.test.ts` (PR #30) | **Yes**: built by Muse, CI run 44129187976; re-run by Claude on `5651670`, passed |
 | R6 Fiction Safeguard lint | **No** | — | — |
 | R7/F-05 permanent simulation labelling | **No**: no export or label surface audited | — | — |
 | R5 / F-07: no institution built before Annex C | Holds by absence: no institution seats exist | — | — |
-| R3 Juárez region | Partial: `engine/world/maps/juarez.ts` (map-v1, PROVISIONAL); geo-v1 dataset provenance not built | AT-06 map tests | CI on main |
+| R3 Juárez region | Partial: `engine/world/maps/juarez.ts` (map-v1, PROVISIONAL); geo-v1 dataset provenance not built | AT-06 map tests | **No**: no named review against R3 |
 | Anti-cheating classes (breach, probe) journaled | **No**: invalid actions are refused, but there is no breach or probe class | — | — |
 | Defense/counter resolution tests | **No**: no tech tree exists yet | — | — |
 | Mixed-cause disease rule | **No**: no disease model exists | — | — |
