@@ -1,0 +1,158 @@
+// Launch runner — infrastructure acceptance tests.
+//
+// (a) create + N ticks + restart resumes at the right head hash;
+// (b) a second runner against the same data directory is refused;
+// (c) clean shutdown mid-run leaves a journal that verifies;
+// (d) a stale lock (dead pid) is taken over, and the takeover is logged;
+// (e) a genesis config that disagrees with the journal is refused.
+
+import { spawnSync } from "node:child_process";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it, vi } from "vitest";
+import { Journal } from "../../ledger/journal.js";
+import { World } from "../../engine/world/world.js";
+import { parseGenesisConfig, type GenesisConfig } from "../../runner/config.js";
+import { LaunchRunner } from "../../runner/runner.js";
+import { tempDir } from "../helpers/worldFixtures.js";
+
+function genesis(seed = 777): GenesisConfig {
+  return parseGenesisConfig({
+    seed,
+    map: "juarez",
+    seats: [
+      {
+        seatId: "nexus",
+        backend: { providerId: "test-double:scripted-policy", version: "test-v1" },
+        position: "centro",
+        satiety: 50,
+        maxSatiety: 60,
+      },
+      {
+        seatId: "scout",
+        backend: { providerId: "test-double:scripted-policy", version: "test-v1" },
+        position: "industrial-east",
+        satiety: 50,
+        maxSatiety: 60,
+      },
+    ],
+  });
+}
+
+function collector(): { lines: string[]; log: (line: string) => void } {
+  const lines: string[] = [];
+  return { lines, log: (line: string) => lines.push(line) };
+}
+
+describe("launch runner", () => {
+  it("(a) creates, ticks, and a restart resumes at the same head hash", async () => {
+    const dir = tempDir();
+    const c1 = collector();
+    const r1 = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: c1.log });
+    await r1.start();
+    expect(r1.startMode).toBe("genesis");
+    // Tick 1 is the priming engine tick; three driver ticks follow.
+    await r1.tickOnce();
+    await r1.tickOnce();
+    await r1.tickOnce();
+    expect(r1.currentTick).toBe(4);
+    const headBefore = r1.currentHead;
+    await r1.stop();
+
+    const onDisk = Journal.loadFromFile(join(dir, "journal.jsonl"));
+    expect(onDisk.verify().ok).toBe(true);
+    expect(onDisk.headHash()).toBe(headBefore);
+    // The scripted seats really acted through the validator.
+    expect(onDisk.entries().some((e) => e.type === "ACTION_ACCEPTED")).toBe(true);
+
+    const c2 = collector();
+    const r2 = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: c2.log });
+    await r2.start();
+    expect(r2.startMode).toBe("resumed");
+    expect(r2.currentTick).toBe(4);
+    expect(r2.currentHead).toBe(headBefore);
+    expect(c2.lines.some((l) => l.startsWith("RUNNER start mode=resumed"))).toBe(true);
+
+    await r2.tickOnce();
+    expect(r2.currentTick).toBe(5);
+    expect(r2.currentHead).not.toBe(headBefore);
+    const headAfter = r2.currentHead;
+    await r2.stop();
+
+    const restored = World.restoreFromFile(join(dir, "journal.jsonl"));
+    expect(restored.headHash).toBe(headAfter);
+    expect(restored.tickNumber).toBe(5);
+  });
+
+  it("(b) refuses a second runner on the same data directory", async () => {
+    const dir = tempDir();
+    const r1 = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: () => {} });
+    await r1.start();
+    const r2 = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: () => {} });
+    await expect(r2.start()).rejects.toThrow(/already held/);
+    await r1.stop();
+    // The lock was released on stop: a fresh runner may take the directory.
+    const r3 = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: () => {} });
+    await r3.start();
+    expect(r3.startMode).toBe("resumed");
+    await r3.stop();
+  });
+
+  it("(c) clean shutdown mid-run leaves a journal that verifies", { timeout: 20000 }, async () => {
+    const dir = tempDir();
+    const c = collector();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(), tickIntervalMs: 5, log: c.log });
+    await r.start();
+    r.run();
+    await vi.waitFor(
+      () => {
+        expect(c.lines.filter((l) => l.startsWith("TICK ")).length).toBeGreaterThanOrEqual(4);
+      },
+      { timeout: 10000, interval: 10 },
+    );
+    await r.stop("test-shutdown");
+
+    expect(c.lines.some((l) => l.startsWith("RUNNER stop reason=test-shutdown"))).toBe(true);
+    expect(existsSync(join(dir, "runner.lock"))).toBe(false);
+    const journal = Journal.loadFromFile(join(dir, "journal.jsonl"));
+    expect(journal.verify().ok).toBe(true);
+    // Shutdown never leaves a half-tick: the journal ends at a commit and a
+    // plain restore (which refuses mid-tick tails) succeeds.
+    expect(journal.entries().at(-1)?.type).toBe("TICK_COMMIT");
+    const restored = World.restoreFromFile(join(dir, "journal.jsonl"));
+    expect(restored.tickNumber).toBeGreaterThanOrEqual(4);
+    expect(restored.headHash).toBe(journal.headHash());
+  });
+
+  it("(d) takes over a stale lock from a dead pid and logs the takeover", async () => {
+    const dir = tempDir();
+    const child = spawnSync(process.execPath, ["-e", "process.exit(0)"]);
+    const deadPid = child.pid as number;
+    writeFileSync(
+      join(dir, "runner.lock"),
+      JSON.stringify({ pid: deadPid, host: "old-host", startedAt: "2026-01-01T00:00:00.000Z" }) + "\n",
+    );
+    const c = collector();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: c.log });
+    await r.start();
+    expect(c.lines.some((l) => l.startsWith("RUNNER lock-takeover") && l.includes(`pid=${deadPid}`))).toBe(true);
+    expect(r.startMode).toBe("genesis");
+    await r.stop();
+  });
+
+  it("(e) refuses a genesis config whose seed disagrees with the journal", async () => {
+    const dir = tempDir();
+    const r1 = new LaunchRunner({ dataDir: dir, genesis: genesis(777), log: () => {} });
+    await r1.start();
+    await r1.stop();
+
+    const wrong = new LaunchRunner({ dataDir: dir, genesis: genesis(999), log: () => {} });
+    await expect(wrong.start()).rejects.toThrow(/does not match the journal's genesis seed/);
+
+    // The failed start released its lock: the right config starts cleanly.
+    const right = new LaunchRunner({ dataDir: dir, genesis: genesis(777), log: () => {} });
+    await right.start();
+    expect(right.startMode).toBe("resumed");
+    await right.stop();
+  });
+});
