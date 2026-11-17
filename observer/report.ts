@@ -7,6 +7,7 @@
 // (AT-18: journal replay reproduces the same displayed world).
 
 import type { Journal } from "../ledger/journal.js";
+import { nunezIdentityPresentation, type NunezIdentityPresentation } from "../lineage/nunezIdentity.js";
 
 export interface WorldReport {
   totalEntries: number;
@@ -20,6 +21,8 @@ export interface WorldReport {
   rejectedByActor: Record<string, number>;
   /** Actors with a journaled DEATH entry, in journal order. */
   deaths: string[];
+  /** Static Charter profile; explicitly not a claim about current world assets or occupants. */
+  charterIdentityProfile: NunezIdentityPresentation;
 }
 
 export function deriveReport(journal: Journal): WorldReport {
@@ -64,5 +67,6 @@ export function deriveReport(journal: Journal): WorldReport {
     actionsByActor,
     rejectedByActor,
     deaths,
+    charterIdentityProfile: nunezIdentityPresentation(),
   };
 }
