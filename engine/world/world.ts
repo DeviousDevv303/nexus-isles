@@ -21,8 +21,10 @@ import { resolveContention, type Claim, type ClaimOutcome } from "./contention.j
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
 import { priorityOrder } from "./contention.js";
+import { epochSpec, scoreEpoch } from "../../observer/dynastyScore.js";
 import { rngFor } from "./rng.js";
 import {
+  computeControl,
   hashState,
   isBackendRef,
   lineageIdFor,
@@ -70,6 +72,7 @@ function effortOf(action: Action): number {
 export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
+  private pendingEpochs: { epoch: string; op: "open" | "close" }[] = [];
 
   private constructor(
     private readonly journal: Journal,
@@ -92,6 +95,7 @@ export class World {
       payload: { seed, config: structuredClone(normalizeConfig(config)) },
     });
     const world = new World(journal, reduce(null, genesis), opts.persistPath, 0);
+    world.stepControl();
     world.commit();
     world.persist();
     return world;
@@ -231,6 +235,7 @@ export class World {
   tick(): void {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
+    this.stepEpochs(); // dynasty-score epochs open/close at the tick boundary
     this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3
@@ -241,6 +246,7 @@ export class World {
     const resolutions = this.stepResolveConflicts(accepted); //                8
     this.stepApply(resolutions, accepted); //                                       9
     this.stepLifecycle(); //                                                  10
+    this.stepControl(); // after moves and deaths: who holds what
     this.commit(); //                                                         11
     this.persist(); //                                                        12
   }
@@ -584,6 +590,54 @@ export class World {
       } else if (r.action.verb === "revoke_succession") {
         const inst = this.st.residents[r.seatId].instrument;
         if (inst) this.emit("SUCCESSION_REVOKED", r.seatId, { resident: r.seatId, instrumentId: inst.id, seq: r.seq });
+      }
+    }
+  }
+
+  /** Journal every change to the control picture (control-v0). */
+  private stepControl(): void {
+    if (!this.st.map) return;
+    const now = computeControl(this.st);
+    for (const region of Object.keys(now).sort()) {
+      const from = this.st.control[region] ?? null;
+      if (now[region] !== from) {
+        this.emit("CONTROL_CHANGED", "engine", { region, from, to: now[region], rule: "control-v0" });
+      }
+    }
+  }
+
+  /**
+   * Open a dynasty-score epoch. Journaled at the start of the next tick with
+   * the formula id, weights, and every provisional reading the score uses
+   * (Annex B 5: formula, inputs, and version ID journaled at epoch open).
+   */
+  openEpoch(epoch: string): void {
+    if (this.st.epochs[epoch] || this.pendingEpochs.some((x) => x.epoch === epoch)) {
+      throw new Error(`epoch ${epoch} already opened`);
+    }
+    this.pendingEpochs.push({ epoch, op: "open" });
+  }
+
+  /**
+   * Close an epoch: at the start of the next tick, score every committed
+   * tick from its start through the last one, and journal the result —
+   * MISSING axes included.
+   */
+  closeEpoch(epoch: string): void {
+    const ep = this.st.epochs[epoch];
+    if (!ep || ep.closed) throw new Error(`epoch ${epoch} is not open`);
+    this.pendingEpochs.push({ epoch, op: "close" });
+  }
+
+  private stepEpochs(): void {
+    const todo = this.pendingEpochs;
+    this.pendingEpochs = [];
+    for (const { epoch, op } of todo) {
+      if (op === "open") {
+        this.emit("EPOCH_OPENED", "engine", { epoch, startTick: this.st.tick, ...epochSpec() });
+      } else {
+        const result = scoreEpoch(this.journal.entries(), epoch, this.st.tick - 1);
+        this.emit("EPOCH_SCORED", "engine", result as unknown as Record<string, unknown>);
       }
     }
   }

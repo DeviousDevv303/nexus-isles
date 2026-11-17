@@ -134,6 +134,34 @@ export interface WorldState {
   /** Engine-assigned id counter for residents born after genesis. */
   nextResidentSeq: number;
   nextInstrumentSeq: number;
+  /** Map worlds: region -> controlling lineage, or null (uncontrolled or contested). */
+  control: Record<string, string | null>;
+  /** Scoring epochs opened in this world (dynasty-score). */
+  epochs: Record<string, { startTick: number; closed: boolean }>;
+}
+
+/** Territory control rule id. PROVISIONAL — owner-ratification item. */
+export const CONTROL_RULE_ID = "control-v0";
+
+/**
+ * control-v0 (PROVISIONAL): a lineage controls a region when it has
+ * strictly more LIVING members standing there than any other lineage. A
+ * tie at the top (including zero everywhere) means nobody controls it.
+ * Members, not individuals: a blended child is its own lineage, so it never
+ * adds to either parent's count.
+ */
+export function computeControl(state: WorldState): Record<string, string | null> {
+  const out: Record<string, string | null> = {};
+  if (!state.map) return out;
+  for (const reg of state.map.regions.map((r) => r.id).sort()) {
+    const counts = new Map<string, number>();
+    for (const r of Object.values(state.residents)) {
+      if (r.alive && r.position === reg) counts.set(r.lineage, (counts.get(r.lineage) ?? 0) + 1);
+    }
+    const ranked = [...counts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    out[reg] = ranked.length > 0 && (ranked.length === 1 || ranked[0][1] > ranked[1][1]) ? ranked[0][0] : null;
+  }
+  return out;
 }
 
 export const DEFAULT_REPRODUCTION_COST = 4;
@@ -275,6 +303,10 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       residents,
       nextResidentSeq: 1,
       nextInstrumentSeq: 1,
+      // Starts empty; the engine journals the genesis control picture as
+      // CONTROL_CHANGED entries before the genesis commit.
+      control: full.map ? Object.fromEntries(full.map.regions.map((r) => [r.id, null])) : {},
+      epochs: {},
     };
   }
   if (state === null) throw new Error(`${entry.type} before WORLD_GENESIS`);
@@ -460,6 +492,41 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       r.position = to;
       return next;
     }
+    case "CONTROL_CHANGED": {
+      // AT-18 (i): territory appears controlled only through this entry,
+      // and only when control-v0 says so given where the living stand.
+      const region = str(p, "region");
+      const to = p.to === null ? null : str(p, "to");
+      const from = p.from === null ? null : str(p, "from");
+      if (!state.map || !(region in state.control) || state.control[region] !== from || from === to) {
+        throw new Error("CONTROL_CHANGED invariant violated (from)");
+      }
+      if (computeControl(state)[region] !== to) {
+        throw new Error("CONTROL_CHANGED invariant violated (not what control-v0 gives)");
+      }
+      next.control[region] = to;
+      return next;
+    }
+    case "EPOCH_OPENED": {
+      const id = str(p, "epoch");
+      if (state.epochs[id] || nonNeg(p, "startTick") !== entry.tick) {
+        throw new Error("EPOCH_OPENED invariant violated");
+      }
+      next.epochs[id] = { startTick: entry.tick, closed: false };
+      return next;
+    }
+    case "EPOCH_SCORED": {
+      // Results are an observer derivation re-checkable from the journal
+      // (observer/dynastyScore.ts verifyEpochScores); the reducer checks
+      // only that the epoch was open and is closed exactly once.
+      const id = str(p, "epoch");
+      const ep = state.epochs[id];
+      if (!ep || ep.closed || nonNeg(p, "startTick") !== ep.startTick || nonNeg(p, "endTick") !== entry.tick - 1) {
+        throw new Error("EPOCH_SCORED invariant violated");
+      }
+      next.epochs[id] = { ...ep, closed: true };
+      return next;
+    }
     case "DEATH": {
       const r = next.residents[str(p, "resident")];
       if (!r || !r.alive) throw new Error("DEATH invariant violated");
@@ -469,6 +536,9 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     }
     case "TICK_COMMIT": {
       if (int(p, "tick") !== state.tick) throw new Error("TICK_COMMIT tick mismatch");
+      if (state.map && canonicalStringify(computeControl(state)) !== canonicalStringify(state.control)) {
+        throw new Error(`TICK_COMMIT control picture out of date at journal index ${entry.index}`);
+      }
       if (str(p, "stateHash") !== hashState(state)) {
         throw new Error(`TICK_COMMIT stateHash mismatch at journal index ${entry.index}`);
       }
