@@ -3,6 +3,11 @@
 // grants, and no seat — Nexus included — receives hidden priority.
 
 import { describe, expect, it } from "vitest";
+
+// Heavy simulation test: well under 1s on an idle machine, but observed
+// past vitest's 5s default on a loaded shared-CPU VM (#235, 6931663589).
+// The raised budget is explicit here rather than global.
+const HEAVY_TIMEOUT_MS = 30_000;
 import {
   CONTENTION_FORMULA_ID,
   priorityOrder,
@@ -98,7 +103,7 @@ describe("AT-15 / AA8 contention-v1", () => {
       expect(n).toBeGreaterThan(60); // fair share 100 of 400
       expect(n).toBeLessThan(140);
     }
-  });
+  }, HEAVY_TIMEOUT_MS);
 
   it("request size confers no priority (smaller requests gain nothing)", () => {
     let smallFirst = 0;

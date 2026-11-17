@@ -14,6 +14,8 @@ export interface WorldReport {
   externalEvents: number;
   byType: Record<string, number>;
   actionsByActor: Record<string, number>;
+  /** Rejected actions by seat (ACTION_REJECTED). */
+  rejectedByActor: Record<string, number>;
   /** Actors with a journaled DEATH entry, in journal order. */
   deaths: string[];
 }
@@ -21,6 +23,7 @@ export interface WorldReport {
 export function deriveReport(journal: Journal): WorldReport {
   const byType: Record<string, number> = {};
   const actionsByActor: Record<string, number> = {};
+  const rejectedByActor: Record<string, number> = {};
   const deaths: string[] = [];
   let resolvedTicks = 0;
   let externalEvents = 0;
@@ -35,6 +38,9 @@ export function deriveReport(journal: Journal): WorldReport {
     if (entry.type === "EXTERNAL_EVENT") externalEvents += 1;
     if (entry.type === "ACTION_ACCEPTED") {
       actionsByActor[entry.actor] = (actionsByActor[entry.actor] ?? 0) + 1;
+    }
+    if (entry.type === "ACTION_REJECTED") {
+      rejectedByActor[entry.actor] = (rejectedByActor[entry.actor] ?? 0) + 1;
     }
     if (entry.type === "DEATH") {
       // The world core journals DEATH with actor "engine" and the deceased
@@ -51,6 +57,7 @@ export function deriveReport(journal: Journal): WorldReport {
     externalEvents,
     byType,
     actionsByActor,
+    rejectedByActor,
     deaths,
   };
 }
