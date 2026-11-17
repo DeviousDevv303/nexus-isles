@@ -19,6 +19,12 @@
 //    through the gateway, where the single validator decides and the journal
 //    records the action (with backend and credential), never the chat.
 //  - Death closes the seat: a dead resident's AI receives nothing new.
+//
+// PROVISIONAL — owner-ratification item (BR-1): enrolments, messages, and
+// approaches live in memory only and are lost on restart. Durable private
+// memory that survives restart while staying invisible to the journal and
+// inside AA7's scrub boundary is an open architectural item; this
+// in-memory form is the Phase 1 prototype, not a ratified design.
 
 import type { World } from "../engine/world/world.js";
 import { AuthError, CredentialRegistry } from "./credentials.js";

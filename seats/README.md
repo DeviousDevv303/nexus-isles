@@ -33,3 +33,8 @@ where the single validator decides.
 
 Limits: enrolment is an operator-side call with no operator authentication;
 messages and enrolments are lost on restart; there is no network transport.
+
+PROVISIONAL — owner-ratification item (BR-1): the restart loss above is a
+known constitutional-tier gap, not a settled design. Durable private memory
+must survive restart, remain invisible to the journal, and stay inside
+AA7's scrub boundary; the in-memory form here is the Phase 1 prototype.
