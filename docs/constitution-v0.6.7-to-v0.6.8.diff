@@ -1,68 +1,109 @@
 diff --git a/docs/constitution-v0.6.7.txt b/docs/constitution-v0.6.8.txt
-index 72cd6e4..869f1f3 100644
+index 72cd6e4..a19299c 100644
 --- a/docs/constitution-v0.6.7.txt
 +++ b/docs/constitution-v0.6.8.txt
-@@ -1,5 +1,8 @@
+@@ -1,5 +1,12 @@
 -NEXUS ISLES — Consolidated Founding Constitution v0.6.7
++⟦v0.6.8 · TRACE: H1 · fold order #235 6954721990 + review requirements 6954727096; rulings package v1.3 6954630158⟧
 +NEXUS ISLES — Consolidated Founding Constitution v0.6.8
  (freeze candidate, audit-precise)
-+v0.6.8 prepared 2026-11-17 by the repo lane (Claude), as assigned in the owner rulings record
-+(#235 comment 6953955603): ratified Erratum E6 folded into the text; the four v0.6.7 audit items
-+(#235 comment 6930329180) applied. Change record in Section XIII. Nothing else in v0.6.7 is altered.
++v0.6.8 prepared 2026-11-17 by the repo lane (Claude). It folds the nine owner-ratified rulings of
++package v1.3 (#235 6954630158; verbatim in Section XV), ratified Erratum E6 with amendment F-01, and
++the four v0.6.7 audit items (#235 6930329180). Every changed section carries a ⟦v0.6.8 · TRACE⟧ line
++naming its authority; Section XIII lists every hunk. Text without a TRACE line is v0.6.7 unchanged.
++Ratification authorizes implementation only; this text is not frozen until the owner’s freeze word
++against its hash, and freezing it does not authorize deployment or launch.
  Prepared 2026-11-16 ·Seats: Kimi (architecture/adversarial), ChatGPT (v0.2 + four reviews), owner
  rulings STATUS: PREPARED FOR OWNER APPROVAL — nothing is frozen until the owner
  explicitly approves. v0.6 per ChatGPT’s fourth review plus errata E1–E4 and E5 (2026-11-16–17):
-@@ -76,7 +79,11 @@ not per-epoch snapshots; (d) artifacts score only when independently verified as
+@@ -76,7 +83,13 @@ not per-epoch snapshots; (d) artifacts score only when independently verified as
  territory scores with a development multiplier, not raw area; (f) versioned formula journaled each epoch.
  Merely producing a successor never makes a dynasty successful. Axis weights (versioned at epoch open
  as dynasty-score-v1, replaceable only by owner ruling per AA10): survival 0.25, territory-years 0.20,
 -verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15 — defaults tunable at freeze.
-+verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15. These weights constitute
-+the owner-adopted dynasty-score-v1 baseline. They change only through a subsequent explicit owner
-+ruling under AA10, which carries a new formula version and a journaled effective epoch. Influence is
-+reserved for dynasty-score-v2 and makes no independent contribution in v1. Missing axes are handled
-+by Erratum E6 (Section XIV): weight held in abeyance, never redistributed.
++verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15.
++⟦v0.6.8 · TRACE: H2 · v0.6.7 audit item 2 (ChatGPT correction 1, #235 6930329180); weights adopted 6929705549; E6 cross-ref R1⟧
++These weights constitute the owner-adopted dynasty-score-v1 baseline. They change only through a
++subsequent explicit owner ruling under AA10, which carries a new formula version and a journaled
++effective epoch. Influence is reserved for dynasty-score-v2 and makes no independent contribution in
++v1. Missing axes are governed by Erratum E6 and R1/F-01 (Sections XIV–XV): weight held in abeyance,
++never redistributed.
  AA2 — Diversity conditions, measurable, outcome-neutral. Floor K and tax formula published
  with inputs and version ID each epoch (diversity-floor-v1). Interventions open conditions only — never
  alter combat outcomes, resource availability, or survival probabilities. Extinct lineages never revived;
-@@ -245,14 +252,18 @@ AA13 — Longevity and the Escalation Ladder (owner ruling, 2026-11-16:
+@@ -139,6 +152,33 @@ AA11 — Residency tiers (verified). Tier 0 Nexus embedded (integration advantag
+ rewriting world facts or bypassing physics); Tier 1 local residents; Tier 2 hosted residents via open API
+ gateway, identical physics and validation (#235 comment 6908386307, verified 2026-11-16). Provider
+ identity journaled, never a scoring input.
++⟦v0.6.8 · TRACE: H3a · R9 (replay executes the engine, never the minds), 6954630158⟧
++Provenance record (R9): model outputs are journaled as history — model identity/version, prompt
++hash, input references, proposal, validator decision, seed, outcome, world-state delta. Replay never
++re-infers. Raw prompts live in an encrypted, Guardian-custodied deliberation store outside the journal
++under AA7 scrub; AA7 deletion never compromises replay.
++⟦v0.6.8 · TRACE: H3b · R4 + F-02 (Directorate seat), R9 (Quinn’s limits); enumeration per F-06 (#235 6954409354), 6954630158⟧
++AA11.2 — Directorate tier (Quinn). A new residency tier under AA11. The Directorate seat may do
++exactly the following, and nothing else: (i) submit world-event proposals, exclusively through the
++validator as structured actions, journaled with provenance, within a strict per-epoch budget; (ii)
++propose process-parameter adjustments, effective only at epoch boundaries via versioned ratified
++config (Quinn adjusts the dice, never picks results); (iii) coordinate simulation time and propose
++environmental circumstances; (iv) investigate anomalies and report. It holds zero authority over
++validation, scoring, succession, or lineage. It cannot change outcomes, bypass validation, favor its
++own proposals, or control institutional decisions. Quinn never writes world-truth: the environment
++engine resolves every accepted Quinn proposal using the seeded RNG and ratified parameters; the
++journal records the resolved event and its provenance. Proposal, validation, resolution, and recording
++are four distinct stages and Quinn appears in exactly one of them. Fairness enforcement remains
++mechanical — validator, RG gates, journal audit. Guardian watches the Directorate like any resident.
++Budget mechanics are defined by the integrated spec (finding F-08), with the validator owning the
++accounting.
++⟦v0.6.8 · TRACE: H3c · R5 (institution model), R7 (real institutions), F-07 sequencing lock (#235 6954409354), 6954630158⟧
++AA11.3 — Organizational seats (institutions). Agency-bearing organizations hold validator-bound
++seats under AA11 with independent objectives, resources, decision processes, persistent histories,
++and action-level provenance — no shared decision-maker, no privileged cross-institution private-state
++access. Phase 1 ceiling: three institution seats; expansion requires owner authorization. Real state
++institutions are admitted only under R7. Annex C (circumstances and decisions) is constitutional text
++that precedes any institution build (R5 item 3; F-07).
+ AA11.1 — The Núñez Royal Blood lineage (owner ruling, #235, 2026-11-16; corrected to
+ full-lineage reading same session).
+ Nexus Intelligence LLM is the designated cognitive repre-
+@@ -245,14 +285,20 @@ AA13 — Longevity and the Escalation Ladder (owner ruling, 2026-11-16:
  research how to be immortal, you can research how to kill the immortal”). Supersedes the
  bounded-longevity draft and the absolute-ban recommendation.
  • Lifespan is conquerable. Age-immortality is researchable at the highest technology generations,
 -at extreme cost, through the ordinary research path. No validator prohibition; the breach-logging
 -class is retired.
-+at extreme cost, through the ordinary research path. No validator prohibition on longevity research;
-+the breach-logging class for longevity RESEARCH is retired. Cheating is not retired: see the anti-
-+cheating clause below.
++at extreme cost, through the ordinary research path.
++⟦v0.6.8 · TRACE: H4 · v0.6.7 audit item 1 (#235 6930329180); longevity ruling 6929502691 (nothing banned except cheating)⟧
++No validator prohibition on longevity research; the breach-logging class for longevity RESEARCH is
++retired. Cheating is not retired: see the anti-cheating clause below.
  • Age-immortality, defined. The highest longevity tier confers immunity to death-by-time only:
  (i) aging — chronological deterioration of vital statistics; (ii) age-related deterioration — stat decay
  attributable to age; (iii) age-related disease events. It confers NO protection against: starvation,
  dehydration, exposure, combat damage, assassination or counter-weapon effects, poison or sabotage
  (where the world provides them), catastrophe, or any non-age death cause. The immortal can still
--starve, still bleed, still lose.
-+starve, still bleed, still lose. Disease immunity applies only to disease events the engine explicitly
-+classifies as age-related. Mixed-cause events are classified by a deterministic, journaled classification
-+rule (versioned with the tech tree); the non-age-related components of a mixed-cause event remain
-+capable of causing death.
+ starve, still bleed, still lose.
++⟦v0.6.8 · TRACE: H5 · v0.6.7 audit item 4 (ChatGPT correction 3, #235 6930329180)⟧
++Disease immunity applies only to disease events the engine explicitly classifies as age-related.
++Mixed-cause events require a deterministic, journaled classification rule; the non-age-related
++components of a mixed-cause event remain capable of causing death.
  • Escalation symmetry (executable criteria). Every immortality or defense effect in the tech
  tree must carry, in the same schema, a counter-effect entry that is: (a) independently researchable
  — no dependency on the defense’s owner; (b) actually capable of defeating the effect in resolution,
-@@ -261,13 +272,29 @@ cost, and deployment requirements.
- Every pair journals generation, all costs, and deployment
+@@ -262,17 +308,37 @@ Every pair journals generation, all costs, and deployment
  requirements with its tech version. The validator checks symmetry at tech-tree freeze; a defense
  without a qualifying counter is a schema bug and blocks freeze of that tree, not a feature and not
--an enforceable advantage.
-+an enforceable advantage. Each defense/counter pair SHALL include a deterministic resolution test
-+demonstrating at least one valid world state in which the counter defeats the defense. The test,
-+its inputs, its expected outcome, and the tech-tree version are retained as acceptance evidence. A
-+counter that only weakens, delays, or nominally references a defense does not qualify. A passing
-+resolution test for every pair is an explicit freeze criterion for that tech tree.
+ an enforceable advantage.
++⟦v0.6.8 · TRACE: H6 · v0.6.7 audit item 3 (ChatGPT correction 2, #235 6930329180)⟧
++Each defense/counter pair SHALL include a deterministic resolution test demonstrating at least one
++valid state in which the counter defeats the defense. The test, its inputs, its expected outcome, and
++the tech-tree version are retained as acceptance evidence. A counter that only weakens, delays, or
++nominally references a defense does not qualify. This is an explicit freeze criterion for that tree.
  • Balance consequences (owned elsewhere in this document): AA1’s sqrt diminishing returns
  cap survival-axis farming; AA3’s stagnation tax applies to immortals in full — an idle immortal
  decays like any idle resident; AA1’s successor-continuity axis scores zero for an immortal who never
  breeds — but no axis is definitional: victory is decided by AA1’s weights and the epoch’s evidence,
  not by any single axis; AA11.1’s anti-resurrection clause is untouched — the engine never respawns
  a seat, and Safeguard 3 forbids rollback regardless of lifespan.
++⟦v0.6.8 · TRACE: H7 · v0.6.7 audit item 1 (Muse finding, #235 6930329180); longevity ruling 6929502691⟧
 +• Anti-cheating (owner ruling: nothing is banned except cheating). Cheating is defined by enu-
 +meration: (i) validator circumvention — any attempt to have an action take effect without passing
 +validation; (ii) exploits — use of an engine defect to obtain an outcome the rules do not grant;
@@ -71,62 +112,114 @@ index 72cd6e4..869f1f3 100644
 +cate identity, checkpoint reload, or backend swap (Safeguard 3, AA11.1); (v) cross-seat imperson-
 +ation — acting as, or on the authority of, a seat one does not occupy. Circumvention attempts are
 +refused and journaled as ATTEMPTED CONSTITUTIONAL BREACHES, with the seat, the action, and the
-+rule invoked. Validator probes — actions whose evident purpose is to map validator behaviour rather
-+than act in the world — are journaled as their own class, distinct from breaches and from ordinary
-+invalid actions. Legitimate research, however far it reaches (age-immortality included), is journaled
-+as research and is never a breach.
++rule invoked. Validator probes are journaled as their own class, distinct from breaches and from
++ordinary invalid actions. Legitimate research, however far it reaches (age-immortality included), is
++journaled as research and is never a breach.
  • The endgame: eternal vigilance is the immortal’s tax. The one who stops watching the horizon
  is the one the counter-research was built for.
  III. World Identity — Tactical Military Style (owner directive, 2026-11-16)
-@@ -543,10 +570,14 @@ Adopted weights (ChatGPT independently recommends this set; owner approval recor
+-1. Setting. Contested archipelago; terrain is doctrine: chokepoints, high ground, concealment, land-
+-ing zones, resource zones. Phase 1 slices one island.
++⟦v0.6.8 · TRACE: H8 · R3 (Nexus Earth, Season 1: Juárez; the prior 1-island brief is superseded), 6954630158⟧
++1. Setting. Season 1: the Ciudad Juárez–El Paso region of a living simulation of real Earth (R3),
++built from versioned traceable geographic datasets (geo-v1, PROVISIONAL), no live external feeds.
++Terrain is doctrine: chokepoints, high ground, concealment, crossings, resource zones. Phase 1 is the
++Juárez region, deep-not-wide.
+ 2. Forces. Factions; settlements mature FOB →fortress. Abstract unit classes with stat profiles —
+ never real-world platform data.
+ 3. Operations. Patrol, garrison, recon, counter-recon, probe, raid, assault, fortify, withdraw, deter.
+@@ -295,7 +361,8 @@ IV. The Crucible, Phasing, and the Acceptance-Test Inventory
+ The Crucible — continuous competition; no reset, no resurrection.
+ Civilizations outlive founders;
+ founders stay dead.
+-Phase 1 — vertical slice: one island, ￿3 independently controlled residents, twelve subsystems, deter-
++⟦v0.6.8 · TRACE: H9a · R3 (Phase 1 re-briefed to the Juárez region), 6954630158⟧
++Phase 1 — vertical slice: the Juárez region (R3), ￿3 independently controlled residents, twelve subsystems, deter-
+ ministic tick pipeline, versioned JSON protocol, SQLite. Exit requires passing the full inventory below.
+ The 1h×8 seeded dry-run must exercise the edge-case fixtures (instrument revoked/expired/partial/in-
+ valid, successor-already-dead, post-death standing-order execution, mutation rounding boundaries) —
+@@ -427,7 +494,9 @@ standing orders continue executing
+ after death within AA4 limits —
+ both paths must hold
+ Passing Phase 1 = AT-01 through AT-19 green. This table is the single source of truth.
+-Phase 2 — nine-island Founding Epoch, founding council, dynastic expansion, 24-hour ticks as a PRO-
++⟦v0.6.8 · TRACE: H9b · R3 (Season 2+ expansion per roadmap; activation adds detail, never rewrites history), 6954630158⟧
++Phase 2 — Season 2+ expansion per R3’s roadmap (S2 Chihuahua →S3 Northern Mexico/Southwest →S4
++Americas →S5 Global), founding council, dynastic expansion, 24-hour ticks as a PRO-
+ POSED operating rule subject to balance evidence, grievance transfer markets, Gen 3+ systems.
+ V. Normative Safeguards (physically included — not referenced)
+ 1. No paid advantages, resource purchases, or pay-to-win mechanics.
+@@ -438,6 +507,15 @@ V. Normative Safeguards (physically included — not referenced)
+ 6. No agent can rewrite Guardian authority.
+ 7. No technological advancement without verified research and resource costs.
+ 8. No hidden favoritism in conflict resolution.
++⟦v0.6.8 · TRACE: H10 · R6 (Fiction Safeguard), R7 + F-05 (labeling), R8 + F-04 (abstraction boundary), R2 + F-10, 6954630158⟧
++9. No real criminal organizations, real persons living or dead, or real victims or incidents as content;
++uncertain content never enters the frozen simulation (R6, fail-closed).
++10. All simulated content is permanently labeled as simulation, including exports and demonstrations;
++a simulated agency’s action is never presentable as an action of the real agency (R7, F-05).
++11. No mechanic may constitute an actionable instruction for real-world violence, trafficking, evasion,
++corruption, or criminal operations (R8, F-04).
++12. No seat, AI, or backend generates or modifies environmental circumstances; no seat bypasses the
++validator for agency actions (R2, F-10).
+ VI. Annex A — Visual North Star (owner-endorsed 2026-11-16)
+ • Palette. Deep blue, cyan, teal command interfaces; restrained amber and red reserved for threat
+ indicators — they appear only when the world signals something contested, damaged, or hostile.
+@@ -543,10 +621,16 @@ Adopted weights (ChatGPT independently recommends this set; owner approval recor
  survival 0.25, territory-years 0.20, verified artifacts 0.20, successor continuity 0.20, wealth-resilience 0.15.
  Per epoch e, per lineage L, all inputs from the journal only:
  1. Normalize each raw axis against active lineages: norm_i = value_i / max(value across active
 -lineages); missing evidence →axis marked MISSING and its weight is renormalized across available
 -axes (never silently zero-scored; the missing axis is journaled).
-+lineages); missing evidence →axis marked MISSING (never silently zero-scored). Its weight is held in
-+abeyance and never renormalized, per Erratum E6 (Section XIV), which supersedes this step’s former
-+renormalization clause in full.
++lineages); missing evidence →axis marked MISSING (never silently zero-scored).
++⟦v0.6.8 · TRACE: H11a · E6 clause 1 (ratified 6937184242 / 6937295727); R1 item 1, 6954630158⟧
++A MISSING axis holds its weight in abeyance and is never renormalized or redistributed (E6, R1). This
++supersedes the former renormalization clause of this step in full.
  2. Diminish: axis_score_i = sqrt(norm_i).
 -3. Combine: dynasty_score_e = Σ w_i × axis_score_i.
-+3. Combine (as amended by E6): every emission reports coverage = Σ w_i over present axes; observed
-+weighted average = Σ w_i × axis_score_i / coverage over present axes; weighted subtotal = observed
-+weighted average × coverage; the missing-axis list; the formula version; and raw per-axis values.
-+With full coverage the weighted subtotal equals Σ w_i × axis_score_i.
++⟦v0.6.8 · TRACE: H11b · R1 amendment F-01 (exact semantics), 6954630158⟧
++3. Combine (F-01): for the present-axis set P, coverage c = Σ{i∈P} w_i; raw weighted sum
++s = Σ{i∈P} w_i·x_i; observed weighted average = s / c; weighted subtotal = s. The full-weight
++denominator is never used. Every emission reports c, the observed weighted average, the subtotal, the
++missing axes, the formula version, and raw per-axis values.
  4. Raw definitions: survival = member-ticks survived / ticks in epoch; territory-years = Σ over
  controlled regions of (controlled ticks × (1 + 0.1 × improvement count)); verified artifacts =
  journal-verified citations/uses by another party, counted with sqrt; successor continuity = count of
-@@ -619,6 +650,58 @@ Generated by Kimi
+@@ -619,6 +703,149 @@ Generated by Kimi
  AT-20 | Backend provenance | Every action journaled with backend identity and version; actions on both
  sides of a backend transition verify identity/history continuity |
  Passing Phase 1 = AT-01 through AT-20 green.
 -— prepared by kimi: eliminate ambiguity, not add features. v0.6.7 is the freeze candidate pending the
 -victory-weights word and ChatGPT’s audit of this full text.
++⟦v0.6.8 · TRACE: H12 · v0.6.7 audit, record hygiene (#235 6930329180)⟧
 +— prepared by kimi: eliminate ambiguity, not add features.
  Generated by Kimi
++⟦v0.6.8 · TRACE: H13 · this change record⟧
 +XIII. Change Record (v0.6.7 →v0.6.8)
-+Change
-+Trigger
-+Erratum E6 (Coverage-Disclosed Dynasty Scoring) carried whole as Section XIV; Annex B steps 1 and
-+3 amended to match; AA1 cross-references E6
-+Owner ruling: E6 ratified, Option 1 (#235 6937184242, formal 6937295727; record 6953955603 item 2)
-+AA1 weights sentence: “defaults tunable at freeze” replaced with the owner-adopted dynasty-score-v1
-+baseline language; Influence reserved for v2
-+v0.6.7 audit item 2 (ChatGPT correction 1, #235 6930329180); record 6953955603 item 3
-+AA13 anti-cheating clause: cheating defined by enumeration; circumvention journaled as attempted
-+constitutional breach; validator probes their own class; research never a breach. The “breach-
-+logging class is retired” sentence narrowed to longevity research
-+v0.6.7 audit item 1 (Muse, #235 6930329180); record 6953955603 item 4
-+AA13 deterministic resolution test required per defense/counter pair; freeze criterion
-+v0.6.7 audit item 3 (ChatGPT correction 2)
-+AA13 mixed-cause disease classification rule
-+v0.6.7 audit item 4 (ChatGPT correction 3)
-+Stale closing line (“pending the victory-weights word”) struck
-+v0.6.7 audit, record hygiene
++Every hunk, with its authority (#235 comment ids). Package v1.3 = 6954630158 (owner-ratified).
++H1 title and status · fold order 6954721990, review requirements 6954727096
++H2 AA1 weights sentence · audit item 2 (6930329180); weights 6929705549
++H3a AA11 provenance record · R9
++H3b AA11.2 Directorate tier · R4, F-02, R9; enumeration per F-06 (6954409354)
++H3c AA11.3 organizational seats · R5, R7; F-07
++H4 AA13 research/breach sentence narrowed · audit item 1; ruling 6929502691
++H5 AA13 mixed-cause disease rule · audit item 4
++H6 AA13 deterministic resolution test · audit item 3
++H7 AA13 anti-cheating clause · audit item 1; ruling 6929502691
++H8 Section III.1 setting · R3
++H9a Phase 1 region · R3
++H9b Phase 2 geography · R3
++H10 Safeguards 9–12 · R6, R7/F-05, R8/F-04, R2/F-10
++H11a Annex B step 1 abeyance · E6 clause 1; R1
++H11b Annex B step 3 F-01 math · R1/F-01
++H12 stale closing line struck · audit hygiene
++H13 this record · —
++H14 Section XIV Erratum E6 · 6937184242, 6937295727 (text as drafted, 6937172806)
++H15 Section XV package v1.3 verbatim · 6954630158
++H16 Annex C circumstances and decisions · R5 item 3, R2, F-10; F-07
++⟦v0.6.8 · TRACE: H14 · E6 ratified 6937184242, formal ruling 6937295727 (Option 1); text as drafted 6937172806⟧
 +XIV. Erratum E6 — Coverage-Disclosed Dynasty Scoring (OWNER-RATIFIED)
-+Ratified 2026-11-16 (#235 6937184242; formal ruling 6937295727, Option 1: no official rankings across
-+different coverage profiles). Text as drafted (Kimi’s final draft incorporating GPT’s refinements, #235
-+6937172806). Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
++Supersedes, in full, the “missing-axis weight renormalize+journal” clause of Annex B
 +dynasty-score-v1. This erratum controls wherever the two conflict.
 +1. Abeyance, not redistribution. A missing axis holds its ratified weight in abeyance. Its weight is
 +never redistributed among present axes, by any mechanism, without explicit owner ratification under
@@ -152,8 +245,95 @@ index 72cd6e4..869f1f3 100644
 +authoritative configuration or genesis record (the AA8 precedent — the engine journals the formula ID
 +at genesis); the observer reads that declaration and the journal and deterministically recomputes. The
 +observer itself never writes.
-+Territory (owner ruling 6937295727 item 2): the territorial-control definition remains RESERVED. The
-+territory-years axis is reported MISSING until the owner separately ratifies a definition; no lane
-+defines or implements one in the meantime.
++Territory (formal ruling 6937295727 item 2): the territorial-control definition remains RESERVED; the
++territory-years axis reports MISSING until the owner separately ratifies a definition.
++⟦v0.6.8 · TRACE: H15 · package v1.3 6954630158, reproduced byte-exact from the comment body (title through closing line; the posting header, posting instructions and amendment log are omitted). SHA-256 of the full comment body as read 2026-11-17: 6e58312c8ece34a54de54ca8e6f18a5c5ecafb433add9365c0423dceb45aac57⟧
++XV. Owner Rulings — Nexus Earth Package v1.3 (OWNER-RATIFIED, verbatim)
++NEXUS EARTH — OWNER RULINGS PACKAGE v1.3
++Compiled by: Kimi (constitutional lane) · 2026-11-17 · v1.3 adds sub-amendment F-11a (owner-ratification semantics + AA7 custody nuance); v1.2 (F-01…F-11), v1.1, v1.0 remain prior canonical records. For owner posting to #235.
++Status per BR-1/RG-3: these are PROPOSED ruling texts — law only when posted in the owner's own voice.
++Coverage: nine rulings, fully converged across Kimi/GPT/Claude/Muse lanes (2026-11-16 session, twice-audited).
++
++---
++
++RULING 1 — E6: Coverage-Disclosed Dynasty Scoring
++
++E6 is ratified as drafted, Option a: no official rankings across different coverage profiles.
++
++1. Missing-axis weights remain in abeyance. No redistribution, ever, without explicit owner ratification (AA10). This supersedes the Annex B renormalize clause in full.
++2. Every score emission reports, as distinct fields: coverage · observed weighted average · weighted subtotal (average × coverage) · missing axes · formula version · raw per-axis values. A partial score is never represented as complete.
++3. Official comparisons require identical formula version AND identical coverage profile. Observed averages may be computed for internal analysis; they are not official rankings.
++4. Historical scores are immutable. No retroactive completeness.
++5. Scoring is deterministic (same journal + formula version → byte-identical emission) and journal-derived only. Proposals, predictions, self-reports, and observer interpretations are not evidence.
++6. The observer is read-only and permission-blind: scores never influence action validation; no observer output becomes world-truth. (CI import-graph restriction to follow in the RG mapping.)
++⟪AMENDMENT F-01 — exact semantics, replaces any ambiguity in Ruling 1 items 2–3⟫
++Formal definition. Each axis value x_i is the Annex B pipeline output (min-max normalized, square-root diminished) for present axes only. Let W = {.25 survival, .20 successors, .20 territory, .20 artifacts, .15 wealth}. For present set P:
++- coverage c = Σ{i∈P} w_i
++- raw weighted sum s = Σ{i∈P} w_i·x_i
++- observed weighted average = s / c  (a conditional descriptive statistic; original weights are preserved in both s and c — the full-W denominator is NEVER used, so observed average and subtotal remain distinct quantities)
++- weighted subtotal = s  (≡ observed average × c)
++Worked fixture (P = {survival, successors}; x_survival=0.8, x_successors=0.6): c=0.45, s=0.25·0.8+0.20·0.6=0.32, observed avg=0.32/0.45≈0.7111, subtotal=0.32. Emission carries {coverage:0.45, observed_avg:0.7111, subtotal:0.32, missing:[territory,artifacts,wealth], formula:"dynasty-score-v1+E6", axes:{survival:0.8, successors:0.6}}.
++Acceptance test: an implemented "full-denominator" path must not exist anywhere; adding a previously missing axis must leave all prior emissions byte-identical.
++
++RULING 2 — Environment Separation
++
++The simulation environment (weather, seasons, catastrophes, ambient randomness) is generated exclusively by the deterministic environment engine: seeded RNG, journaled world events, versioned parameter sets (climate-v1, PROVISIONAL until ratified). No resident seat, AI seat, or backend may generate or modify world-truth events. The Nexus Intelligence lineage seat experiences the environment and may propose long-run climate parameter changes through the standard validated, journaled, owner-visible config channel — never at tick level. Guardian remains outside the world. One intelligence, one role; separation enforced by validator and journal, not intent.
++
++⟪AMENDMENT F-10 — scope of Ruling 2, resolves apparent conflict with Rulings 5/7/9⟫
++Two event classes exist in the world. (1) ENVIRONMENTAL CIRCUMSTANCES — weather, seasons, catastrophes, ambient randomness: generated exclusively by the deterministic environment engine; NO seat, AI, or backend generates or modifies them. (2) VALIDATED AGENCY ACTIONS — proposed by resident, lineage, institution, or directorate seats; accepted or rejected by the validator; resolved by the engine under seeded RNG; journaled as world-truth with provenance. Ruling 2's prohibition covers class (1) only. No seat bypasses the validator for class (2), and no seat generates class (1).
++
++RULING 3 — Nexus Earth, Season 1: Juárez
++
++Nexus becomes a living simulation of real Earth. Season 1 region: Ciudad Juárez–El Paso, built from versioned traceable geographic datasets (geo-v1, PROVISIONAL), no live external feeds. Real institutions, real geography, real climate characteristics via the deterministic environment engine; weather follows real regional climate patterns. The Núñez lineage is one dynasty inside this world — no privilege, no ownership of institutions. The environment self-operates under ratified parameters; it never self-legislates. Phase 1 re-briefed: the Juárez region, deep-not-wide; the prior 1-island brief is superseded. Season 2+ expansion per roadmap (S2 Chihuahua → S3 Northern Mexico/Southwest → S4 Americas → S5 Global); activation adds detail, never rewrites history.
++
++RULING 4 — Quinn Directorate Seat
++
++Quinn is established as a Directorate seat (new residency tier under AA11): world-event proposals submitted exclusively through the validator as structured actions, journaled with provenance, strict per-epoch budget; zero authority over validation, scoring, succession, or lineage; process-parameter adjustments only at epoch boundaries via versioned ratified config (Quinn adjusts the dice, never picks results). Fairness enforcement remains mechanical — validator, RG gates, journal audit. Quinn investigates anomalies and reports; the machine decides. ⟪AMENDMENT F-02⟫ Quinn never writes world-truth: the environment engine resolves every accepted Quinn proposal using the seeded RNG and ratified parameters; the journal records the resolved event and its provenance. Proposal, validation, resolution, and recording are four distinct stages and Quinn appears in exactly one of them. Guardian watches the Directorate like any resident. Nobody is above the world, including the game master.
++
++RULING 5 — Institution Model (three-layer)
++
++Institutions operate as organizational seats under AA11: (1) the environment engine generates CIRCUMSTANCES only (a checkpoint opens, a flood closes a bridge — no choices); (2) agency-bearing organizations hold validator-bound seats with independent objectives, resources, decision processes, persistent histories, and action-level provenance — no shared decision-maker, no privileged cross-institution private-state access; (3) the circumstances/decisions boundary is added to the constitution as an annex BEFORE any institution is built. Federal scope preserved: CBP Office of Field Operations (ports of entry) and U.S. Border Patrol (between ports) are not conflated. Phase 1 ceiling: three institution seats; expansion requires owner authorization.
++
++RULING 6 — Fiction Safeguard
++
++No real criminal organizations, no real persons living or dead, no real victims or incidents depicted as content — including fictionalized recreations of real events. Real state agencies and public mandates are covered under Ruling 7; this safeguard governs everything else. All organizations not covered by Ruling 7 are fictional with invented names, synthetic personnel, and abstracted mechanics (a crossing has cost and risk, never a method). Enforcement is three-layer: automated lint against known real-person/org/incident lists · contextual human/AI review of backstories, event templates, and resident identities · FAIL-CLOSED — uncertain content never enters the frozen simulation. The lint never silently rewrites content. Real communities are depicted with dignity; geography may be real, population and unfolding history are fictional.
++
++RULING 7 — Real Geopolitical Institutions
++
++Real state institutions (CIA, FBI, DEA, DHS, CBP/BP, NSA, MI6/SIS, MI5, Mossad, Shin Bet, MSS, PLA intelligence, SVR, FSB, GRU) are permitted as simulated structures with publicly documented mandates and jurisdictional distinctions preserved — CIA is foreign intelligence, not law enforcement; MI6 is overseas collection. Personnel are synthetic; decisions are validator-bound institutional seats with independent agency. Intelligence attention is EARNED by simulated events (observable pattern → institutional awareness → competing hypotheses, including wrong ones → seat decisions → consequences or inaction) — never scripted, never guaranteed. Jurisdiction operates as constraint: in-world mandate violations are journalable scandal events. Agencies observe each other (counterintelligence is symmetric). Attention-sensitivity parameters are versioned intel-attention-v1, PROVISIONAL. Simulated institutions respond to simulated events ONLY: no contact with real agencies, no monitoring real persons, no implication that real agencies are investigating anyone. ⟪AMENDMENT F-05⟫ All simulated content is permanently labeled as simulation — including event feeds, institutional reports, generated documents, exports, screenshots, and public-facing demonstrations, even when produced outside the original interface. A simulated agency's action must never be presentable as an action of the real agency.
++
++RULING 8 — Economic & Organizational Freedom
++
++Every lineage may pursue any economically or organizationally possible path: legitimate enterprises, politics, trade networks, criminal enterprises, cartels, mafias, secret societies, intelligence networks, and combinations that evolve across generations. No lineage receives a predetermined occupation, moral alignment, or guaranteed outcome. The engine validates physical, economic, and jurisdictional possibility — it does not assign morality. Consequences emerge from world-state interaction, not scripted reward or punishment; legitimate and illegitimate strategies both carry meaningful opportunity and risk, and the engine never secretly favors criminality for entertainment. Three concepts stay distinct: HEAT (internal exposure metric, never directly readable by institutions) · OBSERVATION (what an institution perceives under AT-06/intel-radius) · ASSESSMENT (what it believes the evidence means, including error). Low visibility is not immunity: evidence accumulates, sources change, old information gets reassessed — surfacing is journaled and replayable. Economic freedom applies symmetrically; the founding dynasty receives no exception. ⟪AMENDMENT F-04⟫ Every activity permitted here operates inside Ruling 6's abstraction boundary: consequences, exposure, risk, resources, and institutional attention may be simulated; real organizations and real victims may never be fictionalized; and no mechanic may constitute an actionable instruction for real-world violence, trafficking, evasion, corruption, or criminal operations. Modeling a world's pressures is permitted; teaching its methods is not.
++
++RULING 9 — World Director & Multi-Agent Architecture
++
++Governing principle: one world, one authoritative journal, one validator — many independent minds, none sovereign, all accountable to the record.
++
++- QUINN (World Director): coordinates simulation time, proposes environmental circumstances. Cannot change outcomes, bypass validation, favor its own proposals, or control institutional decisions.
++- QWEN (World Intelligence): studies real-world history, current conditions, institutional knowledge, and long-term trends; produces sourced, timestamped, confidence-rated reports and proposes world-model updates. Reality research informs the simulation; it never becomes simulation history directly. ⟪AMENDMENT F-03⟫ The boundary is absolute: real-world research is an external information layer; every Qwen report carries source references, publication timestamps, confidence rating, and provenance; timestamped snapshots are research evidence, never world events; simulation state is journal-derived exclusively. No external report can create, alter, or be mistaken for a historical event inside Nexus Earth.
++
++⟪AMENDMENT F-11 — live sources, resolves apparent conflict between Ruling 3 and Ruling 9; OWNER DECISION FLAGGED⟫
++The prohibition on live external feeds in Ruling 3 covers SIMULATION inputs: nothing external may directly drive simulation state, environmental events, or historical records. It does not prohibit live RESEARCH sources for Qwen, if the owner authorizes them: Qwen may consult periodically refreshed real-world sources as external evidence, producing timestamped, sourced, confidence-rated reports. The boundary is absolute in both directions: research evidence never enters simulation state directly, and no simulation output is ever reported as real-world fact. Any world-model change proposed from research passes exclusively through the authorized, versioned, owner-visible configuration process. OWNER DECISION AT POSTING: (a) ratify as written = Qwen live research sources authorized, external-evidence layer only; (b) strike the second sentence = Qwen restricted to static, periodically ingested corpora, no live consultation. ⟪SUB-AMENDMENT F-11a — owner-approval semantics⟫ No research-derived configuration change becomes effective without explicit owner ratification, recorded with its version and provenance. Owner visibility is not owner approval; the two are distinct and only the second authorizes effect. Qwen's private deliberations and prompts are governed by the deliberation-store custody and deletion rules of Ruling 9 even where its public-source research is not.
++- Lineage and institution seats decide independently, each with its own objectives, resources, information boundaries, and provenance.
++- Replay executes the ENGINE, never the minds: model outputs are journaled as history (model identity/version, prompt hash, input references, proposal, validator decision, seed, outcome, world-state delta). Replay never re-infers. Raw prompts live in an encrypted, Guardian-custodied deliberation store outside the journal under AA7 scrub — private deliberation is not world-truth, and AA7 deletion never compromises replay.
++
++The minds create proposals. The constitution defines authority. The engine resolves. The journal remembers.
++Status note (not a ruling): the F-11 election is open. Until the owner’s explicit tap, the restrictive
++reading (b) governs — Qwen is restricted to static, periodically ingested corpora, no live consultation
++(#235 6954721990; live research is never authorized by silence, 6954727096).
++⟦v0.6.8 · TRACE: H16 · R5 item 3 (annex before any institution is built), R2 + F-10, F-07 sequencing lock; sentences quoted from 6954630158⟧
++XVI. Annex C — Circumstances and Decisions
++Two event classes exist in the world, and they never merge:
++1. ENVIRONMENTAL CIRCUMSTANCES — weather, seasons, catastrophes, ambient randomness (a checkpoint
++opens, a flood closes a bridge — no choices): generated exclusively by the deterministic environment
++engine under seeded RNG, journaled world events, and versioned parameter sets; NO seat, AI, or backend
++generates or modifies them (R2, R5 item 1, F-10). Accepted Directorate proposals are resolved by the
++environment engine, never written by the proposer (F-02).
++2. VALIDATED AGENCY ACTIONS — proposed by resident, lineage, institution, or directorate seats;
++accepted or rejected by the validator; resolved by the engine under seeded RNG; journaled as world-truth
++with provenance (F-10, R5 item 2). No seat bypasses the validator for class 2.
++The environment determines the circumstances; seats make validated choices within them; the engine
++resolves; the journal preserves. No institution is built before this annex is in force (R5 item 3, F-07).
 +v0.6.8 is the freeze candidate. Next: Kimi’s adversarial pass, ChatGPT’s independent inspection of the
-+committed artifact, then the freeze record pinning this text’s hash (owner ruling 1, record 6953955603).
++committed artifact, then the freeze word against this text’s hash. Freeze does not authorize launch.
