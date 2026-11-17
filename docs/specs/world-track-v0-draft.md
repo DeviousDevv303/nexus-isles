@@ -126,6 +126,9 @@ Enforceable parts:
 2. **Phase 1 scope.** The ratified brief is one island and 3+ residents. Nexus Earth Season 1 re-briefs to a deep Juárez region, and the institution ruling adds three seats. Until the owner rules the re-brief, the brief governs (Muse, 6937583035).
 3. **The map.** T6 has three bridges plus a river crossing. Real Juárez–El Paso has more crossings; Muse notes Stanton–Lerdo is missing from T6 (6937448492). "Real geography from versioned datasets" means replacing `juarez-v1`, not tuning it. Owner's call whether Season 1 is real geography or the abstract map.
 4. **Who is the referee?** The owner's direction makes Quinn a referee that "makes sure nobody is cheating". Muse's boundary is that Guardian (code) judges and Quinn only reports. This draft follows Muse. The owner should confirm that "referee" means *reports*, not *rules*.
+5. **Unattended operation** (GPT safeguard 5): a scheduler needs crash recovery, checkpoint verification, duplicate-tick prevention, resource limits and an emergency stop. Two known gaps block it today:
+   - the torn-tail journal load;
+   - queued actions lost on restart.
 6. **[GPT-2 vs GPT-5] The federal seat and the three-seat ceiling.** If OFO and Border Patrol must stay distinct, "one federal presence" is either:
    - (a) OFO only, running the bridges, with nothing between the ports in Phase 1 (fits the map: every border edge is a bridge except the Anapra river crossing);
    - (b) Border Patrol only, between the ports, with the bridges left as circumstances (but bridge operation is a decision, which GPT-3 forbids);
@@ -133,9 +136,6 @@ Enforceable parts:
 
    This draft recommends (a). The Anapra river crossing then has no federal actor in Phase 1, which should be stated, not hidden. Owner's call.
 7. **Real agencies reopen contradiction 1.** GPT-2 names CBP OFO and Border Patrol, which presumes real public-agency structures. That conflicts with Kimi's "all organizations fictional" unless the owner adopts the middle reading in item 1.
-5. **Unattended operation** (GPT safeguard 5): a scheduler needs crash recovery, checkpoint verification, duplicate-tick prevention, resource limits and an emergency stop. Two known gaps block it today:
-   - the torn-tail journal load;
-   - queued actions lost on restart.
 
 ---
 
