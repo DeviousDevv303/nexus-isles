@@ -16,7 +16,7 @@
 //    state deterministically (AT-14). Same journal -> same state, always.
 
 import { createHash } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { closeSync, fsyncSync, openSync, readFileSync, truncateSync, writeSync } from "node:fs";
 
 export const GENESIS_PREV_HASH = "GENESIS";
 
@@ -72,6 +72,26 @@ export function computeEntryHash(
     prevHash: entry.prevHash,
   });
   return createHash("sha256").update(material, "utf8").digest("hex");
+}
+
+/**
+ * What a load found at the end of the file. Muse's ledger ruling
+ * (#235, 6938908225): a final incomplete or unparseable fragment is a torn
+ * write from a crash mid-append; the loader discards ONLY that fragment and
+ * reports it. A complete (newline-terminated) line that is corrupt still
+ * fails loudly, and no complete entry is ever dropped.
+ */
+export interface LoadReport {
+  tornTail: null | {
+    /** Byte offset where the fragment started (the file's valid length). */
+    offset: number;
+    /** Size of the discarded fragment in bytes. */
+    bytes: number;
+    /** sha256 of the discarded bytes, so the report is checkable. */
+    sha256: string;
+  };
+  /** The final entry was complete but had lost its newline; it was kept. */
+  unterminatedFinalEntry: boolean;
 }
 
 export type VerifyResult =
@@ -134,29 +154,91 @@ export class Journal {
     return { ok: true, length: this.chain.length };
   }
 
-  /** Append this journal's not-yet-written tail to a JSONL file. */
+  /**
+   * Append this journal's not-yet-written tail to a JSONL file, one entry
+   * per write, each flushed to disk before the next (per-entry flush). A
+   * crash can therefore tear at most the final line.
+   */
   saveToFile(path: string, fromIndex = 0): void {
-    const lines = this.chain
-      .slice(fromIndex)
-      .map((e) => JSON.stringify(e))
-      .join("\n");
-    if (lines.length > 0) appendFileSync(path, lines + "\n", "utf8");
+    const tail = this.chain.slice(fromIndex);
+    if (tail.length === 0) return;
+    const fd = openSync(path, "a");
+    try {
+      for (const e of tail) {
+        writeSync(fd, JSON.stringify(e) + "\n", null, "utf8");
+        fsyncSync(fd);
+      }
+    } finally {
+      closeSync(fd);
+    }
   }
 
-  /** Load a journal from a JSONL file and verify it before trusting it. */
-  static loadFromFile(path: string): Journal {
-    const raw = readFileSync(path, "utf8").trim();
+  /** Report from the load that produced this journal, if any. */
+  loadReport: LoadReport = { tornTail: null, unterminatedFinalEntry: false };
+
+  /**
+   * Load a journal from a JSONL file and verify it before trusting it.
+   * A torn final fragment is discarded and reported in `loadReport`; with
+   * `repair`, the file is also truncated to its last complete line so the
+   * next append starts clean. Anything else wrong fails loudly.
+   */
+  static loadFromFile(path: string, opts: { repair?: boolean } = {}): Journal {
+    const raw = readFileSync(path, "utf8");
     const journal = new Journal();
-    if (raw.length === 0) return journal;
-    for (const line of raw.split("\n")) {
-      const parsed = JSON.parse(line) as JournalEntry;
-      journal.chain.push(Object.freeze(parsed));
+    const lastNewline = raw.lastIndexOf("\n");
+    const complete = raw.slice(0, lastNewline + 1);
+    let fragment = raw.slice(lastNewline + 1);
+    const lines = complete.length === 0 ? [] : complete.slice(0, -1).split("\n");
+    // An unterminated final segment that parses is a complete entry that
+    // only lost its newline: keep it. One that doesn't parse is torn.
+    if (fragment.length > 0) {
+      let parses = true;
+      try {
+        JSON.parse(fragment);
+      } catch {
+        parses = false;
+      }
+      if (parses) {
+        lines.push(fragment);
+        fragment = "";
+        journal.loadReport = { ...journal.loadReport, unterminatedFinalEntry: true };
+      }
     }
+    lines.forEach((line, i) => {
+      let parsed: JournalEntry;
+      try {
+        parsed = JSON.parse(line) as JournalEntry;
+      } catch {
+        throw new Error(`Journal line ${i + 1} is complete but unparseable — corruption, not a torn write`);
+      }
+      journal.chain.push(Object.freeze(parsed));
+    });
     const result = journal.verify();
     if (!result.ok) {
       throw new Error(
         `Journal failed verification at index ${result.firstBadIndex}: ${result.reason}`,
       );
+    }
+    if (journal.loadReport.unterminatedFinalEntry && opts.repair) {
+      const fd = openSync(path, "a");
+      try {
+        writeSync(fd, "\n", null, "utf8");
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    if (fragment.length > 0) {
+      const offset = Buffer.byteLength(complete, "utf8");
+      journal.loadReport = {
+        ...journal.loadReport,
+        tornTail: {
+          offset,
+          bytes: Buffer.byteLength(fragment, "utf8"),
+          sha256: createHash("sha256").update(fragment, "utf8").digest("hex"),
+        },
+      };
+      if (opts.repair) truncateSync(path, offset);
     }
     return journal;
   }
