@@ -4,7 +4,9 @@
 // reinterpret history. Unfinished: territory evidence remains MISSING and
 // successor continuity remains held for the owner's E6 audit; this spec does
 // not ratify those interpretations or add scoring behavior.
-// PROVISIONAL — owner-ratification item (registry: dynasty-score-v1).
+// Weights and version: RATIFIED (registry: dynasty-score-v1; owner ruling 6937295727).
+// PROVISIONAL — owner-ratification item (registry: dynasty-score-v1-axes): the axis
+// definitions carry unratified readings (heir eligibility, wealth subweights).
 
 export const DYNASTY_SCORE_VERSION = "dynasty-score-v1" as const;
 

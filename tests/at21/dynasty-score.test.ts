@@ -1,5 +1,5 @@
 // AT-21 / T7 — pure, journal-derived dynasty-score-v1 observer.
-// registry: dynasty-score-v1
+// registry: dynasty-score-v1, registry: dynasty-score-v1-axes
 // The observer never opens/closes epochs or appends score records; identical
 // verified journal input and explicit epoch bounds must reproduce the score.
 
