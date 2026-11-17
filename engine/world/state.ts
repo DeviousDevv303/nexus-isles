@@ -503,6 +503,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     case "REPRODUCTION_FAILED":
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
+    case "DRIVER_ACTION_REJECTED":
       return state;
     default:
       throw new Error(`Unknown journal entry type: ${entry.type}`);
