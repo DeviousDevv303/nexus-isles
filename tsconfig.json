@@ -23,6 +23,7 @@
     "protocol/**/*.ts",
     "residents/**/*.ts",
     "tests/**/*.ts",
-    "tools/**/*.ts"
+    "tools/**/*.ts",
+    "runner/**/*.ts"
   ]
 }
