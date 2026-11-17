@@ -12,6 +12,8 @@ export interface WorldReport {
   totalEntries: number;
   resolvedTicks: number;
   externalEvents: number;
+  /** Refused owner-console submissions (never interventions). */
+  rejectedConsoleSubmissions: number;
   byType: Record<string, number>;
   actionsByActor: Record<string, number>;
   /** Rejected actions by seat (ACTION_REJECTED). */
@@ -27,6 +29,7 @@ export function deriveReport(journal: Journal): WorldReport {
   const deaths: string[] = [];
   let resolvedTicks = 0;
   let externalEvents = 0;
+  let rejectedConsoleSubmissions = 0;
 
   for (const entry of journal.entries()) {
     byType[entry.type] = (byType[entry.type] ?? 0) + 1;
@@ -36,6 +39,7 @@ export function deriveReport(journal: Journal): WorldReport {
     // zero ticks and zero actions for every real journal.)
     if (entry.type === "TICK_COMMIT") resolvedTicks += 1;
     if (entry.type === "EXTERNAL_EVENT") externalEvents += 1;
+    if (entry.type === "OWNER_SUBMISSION_REJECTED") rejectedConsoleSubmissions += 1;
     if (entry.type === "ACTION_ACCEPTED") {
       actionsByActor[entry.actor] = (actionsByActor[entry.actor] ?? 0) + 1;
     }
@@ -55,6 +59,7 @@ export function deriveReport(journal: Journal): WorldReport {
     totalEntries: journal.length,
     resolvedTicks,
     externalEvents,
+    rejectedConsoleSubmissions,
     byType,
     actionsByActor,
     rejectedByActor,

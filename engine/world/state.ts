@@ -435,6 +435,14 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
+    case "OWNER_SUBMISSION_REJECTED": {
+      // A refused console submission, recorded as an occurrence. No world
+      // effect. It lands at the first tick boundary after it was refused.
+      if (p.status !== "rejected" || typeof p.code !== "string" || nonNeg(p, "submittedAtTick") !== entry.tick - 1 || entry.tick !== state.tick) {
+        throw new Error("OWNER_SUBMISSION_REJECTED invariant violated");
+      }
+      return state;
+    }
     case "EXTERNAL_EVENT": {
       // AA9: an owner-console intervention, recorded verbatim. No console
       // class has an executable effect yet, so this is audit-only. It must
