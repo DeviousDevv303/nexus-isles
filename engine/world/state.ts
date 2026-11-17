@@ -9,9 +9,14 @@ import { createHash } from "node:crypto";
 import { canonicalStringify, type JournalEntry } from "../../ledger/journal.js";
 import { validateGenome, type Genome } from "../../lineage/genome.js";
 import type { SuccessionInstrument } from "../../lineage/succession.js";
+import { validateMap, type MapSpec } from "./map.js";
 import { CONTENTION_FORMULA_ID, KNOWN_FORMULAS } from "./contention.js";
 
 export const DEFAULT_MAX_EFFORT = 3;
+/** Map worlds: default observation radius in hops. A Phase 1 proposal. */
+export const DEFAULT_INTEL = 1;
+/** Map worlds: the highest intel any resident may have. */
+export const MAX_INTEL = 3;
 
 /** Fill AA8 defaults so the formula ID and bounds are always journaled. */
 export function normalizeConfig(config: WorldConfig): WorldConfig {
@@ -23,7 +28,11 @@ export function normalizeConfig(config: WorldConfig): WorldConfig {
       contentionFormula: config.rules.contentionFormula ?? CONTENTION_FORMULA_ID,
       reproductionCost: config.rules.reproductionCost ?? DEFAULT_REPRODUCTION_COST,
     },
-    residents: config.residents.map((r) => ({ ...r, initiative: r.initiative ?? 0 })),
+    residents: config.residents.map((r) => ({
+      ...r,
+      initiative: r.initiative ?? 0,
+      ...(config.map ? { intel: r.intel ?? DEFAULT_INTEL } : {}),
+    })),
   };
 }
 
@@ -32,6 +41,8 @@ export interface NodeConfig {
   capacity: number;
   amount: number;
   regen: number;
+  /** Map worlds: the region this node stands in. */
+  region?: string;
 }
 export interface ResidentConfig {
   id: string;
@@ -40,6 +51,10 @@ export interface ResidentConfig {
   actionsPerTick: number;
   /** AA8 initiative (integer >= 0). Defaults to 0; genomes feed it later. */
   initiative?: number;
+  /** Map worlds: the region the resident starts in. Required when a map is set. */
+  position?: string;
+  /** Map worlds: observation radius in hops (default 1). */
+  intel?: number;
   /** The backend acting through this seat at genesis (AT-20). */
   backend?: BackendRef;
   /** Trait layer only. Lineage identity is a journal fact, never genome content. */
@@ -74,6 +89,8 @@ export interface Rules {
 /** Rules as journaled in WORLD_GENESIS: every AA8 field explicit. */
 export type JournaledRules = Required<Rules>;
 export interface WorldConfig {
+  /** Optional map. Without one the world has no positions and a uniform view. */
+  map?: MapSpec;
   nodes: NodeConfig[];
   residents: ResidentConfig[];
   rules: Rules;
@@ -83,6 +100,7 @@ export interface NodeState {
   capacity: number;
   amount: number;
   regen: number;
+  region: string | null;
 }
 export interface ResidentState {
   alive: boolean;
@@ -101,11 +119,16 @@ export interface ResidentState {
   backend: BackendRef | null;
   /** The one succession instrument this resident has in force, if any (AA4). */
   instrument: SuccessionInstrument | null;
+  /** Map worlds: current region; null in a map-less world. */
+  position: string | null;
+  /** Map worlds: observation radius in hops. */
+  intel: number;
 }
 export interface WorldState {
   seed: number;
   tick: number;
   rules: JournaledRules;
+  map: MapSpec | null;
   nodes: Record<string, NodeState>;
   residents: Record<string, ResidentState>;
   /** Engine-assigned id counter for residents born after genesis. */
@@ -143,6 +166,26 @@ function nonNeg(p: Payload, k: string): number {
 }
 
 export function validateConfig(config: WorldConfig): void {
+  const regionIds = new Set<string>();
+  if (config.map) {
+    validateMap(config.map);
+    for (const r of config.map.regions) regionIds.add(r.id);
+    for (const n of config.nodes) {
+      if (!n.region || !regionIds.has(n.region)) throw new Error(`node ${n.id}: map worlds need a known region`);
+    }
+    for (const r of config.residents) {
+      if (!r.position || !regionIds.has(r.position)) throw new Error(`resident ${r.id}: map worlds need a known starting position`);
+      const intel = r.intel ?? DEFAULT_INTEL;
+      if (!Number.isSafeInteger(intel) || intel < 0 || intel > MAX_INTEL) {
+        throw new Error(`resident ${r.id}: intel must be an integer 0..${MAX_INTEL}`);
+      }
+    }
+  } else {
+    for (const n of config.nodes) if (n.region !== undefined) throw new Error(`node ${n.id}: region given but the world has no map`);
+    for (const r of config.residents) {
+      if (r.position !== undefined || r.intel !== undefined) throw new Error(`resident ${r.id}: position/intel given but the world has no map`);
+    }
+  }
   const ids = new Set<string>();
   for (const n of config.nodes) {
     if (ids.has(n.id)) throw new Error(`duplicate node id ${n.id}`);
@@ -201,7 +244,7 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     const full = normalizeConfig(config);
     const nodes: Record<string, NodeState> = {};
     for (const n of full.nodes) {
-      nodes[n.id] = { capacity: n.capacity, amount: n.amount, regen: n.regen };
+      nodes[n.id] = { capacity: n.capacity, amount: n.amount, regen: n.regen, region: n.region ?? null };
     }
     const residents: Record<string, ResidentState> = {};
     for (const r of full.residents) {
@@ -219,12 +262,15 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         genome: r.genome ? structuredClone(r.genome) : null,
         backend: r.backend ? { providerId: r.backend.providerId, version: r.backend.version } : null,
         instrument: null,
+        position: r.position ?? null,
+        intel: full.map ? (r.intel ?? DEFAULT_INTEL) : 0,
       };
     }
     return {
       seed: int(p, "seed"),
       tick: 0,
       rules: { ...full.rules } as JournaledRules,
+      map: full.map ? structuredClone(full.map) : null,
       nodes,
       residents,
       nextResidentSeq: 1,
@@ -332,6 +378,8 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         genome: structuredClone(p.genome as Genome),
         backend: null, // a new resident: a brain must be bound before it can act
         instrument: null,
+        position: state.map ? str(p, "position") : null,
+        intel: state.map ? nonNeg(p, "intel") : 0,
       };
       next.nextResidentSeq = state.nextResidentSeq + 1;
       return next;
@@ -387,6 +435,18 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
+    case "MOVED": {
+      // One edge per tick, along an edge that exists, from where the
+      // resident actually is. Capacity was decided by CROSSING_RESOLVED.
+      const r = next.residents[str(p, "resident")];
+      const from = str(p, "from");
+      const to = str(p, "to");
+      const map = state.map;
+      const adjacent = map ? map.edges.some((e) => (e.a === from && e.b === to) || (e.b === from && e.a === to)) : false;
+      if (!r || !r.alive || r.position !== from || !adjacent) throw new Error("MOVED invariant violated");
+      r.position = to;
+      return next;
+    }
     case "SEAT_BACKEND_BOUND": {
       // AA11: a backend change is a journaled engine event. Identity, memory,
       // genome and history are untouched — the brain is replaceable, the
@@ -417,6 +477,8 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     // Audit-only entries: recorded for the ledger, no state effect.
     case "OBSERVATION_DELIVERED":
     case "CONTENTION_RESOLVED":
+    case "CROSSING_RESOLVED":
+    case "MOVE_DENIED":
     case "BACKEND_BIND_REJECTED":
     case "REPRODUCTION_FAILED":
     case "ACTION_ACCEPTED":

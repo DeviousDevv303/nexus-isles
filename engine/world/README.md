@@ -44,3 +44,16 @@ parameters (effort cost, `maxEffort`, initiative source) are this build's
 proposal and need the owner's ratification before being called frozen. Grants
 are still whole-request in priority order (the last claimant may receive a
 remainder); that is a stated property of v1, not a hidden one.
+
+## Map, travel, observation (Phase 1 task T6)
+
+`map.ts` is the graph: regions, edges, optional per-tick crossing capacity.
+`maps/juarez.ts` is Phase 1's first environment (Ciudad Juárez and El Paso,
+three international bridges and one river crossing as capped chokepoints).
+With a map set: residents have a position and an intel radius; `move` goes
+one edge per tick; you gather where you stand; blend partners must share a
+region; capped crossings are resolved by contention-v1's priority order and
+journaled (`CROSSING_RESOLVED`, `MOVED`, `MOVE_DENIED`); observations show
+only regions within the resident's radius (AT-06). Without a map the world
+keeps the old uniform view. All map numbers (capacities, intel default,
+node placement) are Phase 1 proposals.

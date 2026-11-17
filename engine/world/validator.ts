@@ -59,7 +59,7 @@ export function draftInstrument(
   };
 }
 
-export const VERBS = ["gather", "eat", "wait", "fork", "blend", "authorize_succession", "revoke_succession"] as const;
+export const VERBS = ["gather", "eat", "wait", "move", "fork", "blend", "authorize_succession", "revoke_succession"] as const;
 
 export type ValidationResult = { ok: true } | { ok: false; reason: string };
 
@@ -76,8 +76,10 @@ export function validateAction(
   seatId: string,
   action: Action,
   indexWithinSeat: number,
-  /** Effort already committed (cost = effort - 1 per gather) by this seat this tick. */
+  /** Effort already committed (cost = effort - 1 per gather or move) by this seat this tick. */
   committedCost = 0,
+  /** Moves already accepted for this seat this tick. */
+  movesBefore = 0,
 ): ValidationResult {
   const resident = state.residents[seatId];
   if (!resident) return { ok: false, reason: "unknown_seat" };
@@ -95,6 +97,10 @@ export function validateAction(
       const node = action.args.node;
       if (typeof node !== "string" || !(node in state.nodes)) {
         return { ok: false, reason: "unknown_node" };
+      }
+      // Map worlds: you gather where you stand.
+      if (state.map && state.nodes[node].region !== resident.position) {
+        return { ok: false, reason: "not_in_region" };
       }
       const amount = action.args.amount;
       if (!isPositiveInt(amount) || amount > state.rules.maxGatherPerAction) {
@@ -116,6 +122,26 @@ export function validateAction(
         return { ok: false, reason: "invalid_amount" };
       }
       if (resident.inventory < 1) return { ok: false, reason: "nothing_to_eat" };
+      return { ok: true };
+    }
+    case "move": {
+      if (!state.map) return { ok: false, reason: "no_map" };
+      const to = action.args.to;
+      if (typeof to !== "string" || !state.map.regions.some((r) => r.id === to)) {
+        return { ok: false, reason: "unknown_region" };
+      }
+      const from = resident.position;
+      if (!state.map.edges.some((e) => (e.a === from && e.b === to) || (e.b === from && e.a === to))) {
+        return { ok: false, reason: "not_adjacent" };
+      }
+      if (movesBefore > 0) return { ok: false, reason: "one_move_per_tick" };
+      const effort = action.args.effort ?? 1;
+      if (!isPositiveInt(effort) || effort > state.rules.maxEffort) {
+        return { ok: false, reason: "invalid_effort" };
+      }
+      if (committedCost + (effort - 1) >= resident.satiety) {
+        return { ok: false, reason: "insufficient_stamina" };
+      }
       return { ok: true };
     }
     case "authorize_succession": {
@@ -143,6 +169,9 @@ export function validateAction(
         const partner = typeof partnerId === "string" ? state.residents[partnerId] : undefined;
         if (!partner || !partner.alive || partnerId === seatId || !partner.genome) {
           return { ok: false, reason: "invalid_partner" };
+        }
+        if (state.map && partner.position !== resident.position) {
+          return { ok: false, reason: "partner_not_present" };
         }
       }
       if (resident.inventory < state.rules.reproductionCost) {

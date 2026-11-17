@@ -19,6 +19,8 @@ import { Journal, type JournalEntry } from "../../ledger/journal.js";
 import type { Action, Observation } from "../../seats/seatProvider.js";
 import { resolveContention, type Claim, type ClaimOutcome } from "./contention.js";
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
+import { edgeKey, findEdge, regionsWithin } from "./map.js";
+import { priorityOrder } from "./contention.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
@@ -298,19 +300,36 @@ export class World {
   }
 
   private stepObservations(): void {
-    const nodes: Record<string, number> = {};
-    for (const id of this.sortedIds(this.st.nodes)) nodes[id] = this.st.nodes[id].amount;
+    const map = this.st.map;
     for (const id of this.sortedIds(this.st.residents)) {
       const r = this.st.residents[id];
       if (!r.alive) continue;
-      // Visibility filtering (geography/fog) lands with the island map; for
-      // now every seat is authorised the same view — identical for all seats.
-      const visible = {
-        satiety: r.satiety,
-        maxSatiety: r.maxSatiety,
-        inventory: r.inventory,
-        nodes: { ...nodes },
-      };
+      const self = { satiety: r.satiety, maxSatiety: r.maxSatiety, inventory: r.inventory };
+      let visible: Record<string, unknown>;
+      if (!map) {
+        // Map-less worlds (fixtures, unit tests): every seat gets the same
+        // view of every node. AT-06 is demonstrated only on map worlds.
+        const nodes: Record<string, number> = {};
+        for (const n of this.sortedIds(this.st.nodes)) nodes[n] = this.st.nodes[n].amount;
+        visible = { ...self, nodes };
+      } else {
+        // AT-06: a resident perceives only regions within `intel` hops of
+        // where they stand — who is there and what the nodes hold. Nothing
+        // outside that radius, not even that it exists, beyond the map
+        // itself (geography is public).
+        const regions: Record<string, { residents: string[]; nodes: Record<string, number> }> = {};
+        for (const reg of regionsWithin(map, r.position as string, r.intel)) {
+          const nodes: Record<string, number> = {};
+          for (const n of this.sortedIds(this.st.nodes)) {
+            if (this.st.nodes[n].region === reg) nodes[n] = this.st.nodes[n].amount;
+          }
+          const present = this.sortedIds(this.st.residents).filter(
+            (o) => o !== id && this.st.residents[o].alive && this.st.residents[o].position === reg,
+          );
+          regions[reg] = { residents: present, nodes };
+        }
+        visible = { ...self, position: r.position, intel: r.intel, regions };
+      }
       this.emit("OBSERVATION_DELIVERED", "engine", { seat: id, visible });
     }
   }
@@ -329,15 +348,19 @@ export class World {
   private stepValidate(received: Received[]): Received[] {
     const accepted: Received[] = [];
     const committed = new Map<string, number>();
+    const moves = new Map<string, number>();
     for (const r of received) {
-      const res = validateAction(this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0);
+      const res = validateAction(
+        this.st, r.seatId, r.action, r.seq, committed.get(r.seatId) ?? 0, moves.get(r.seatId) ?? 0,
+      );
       // AT-20: every action record carries the backend that produced it.
       const backend = this.st.residents[r.seatId]?.backend ?? null;
       const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend, credential: r.credentialId };
       if (res.ok) {
-        if (r.action.verb === "gather") {
+        if (r.action.verb === "gather" || r.action.verb === "move") {
           committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);
         }
+        if (r.action.verb === "move") moves.set(r.seatId, (moves.get(r.seatId) ?? 0) + 1);
         this.emit("ACTION_ACCEPTED", r.seatId, body);
         accepted.push(r);
       } else {
@@ -381,7 +404,7 @@ export class World {
   private stepApply(resolutions: NodeResolution[], accepted: Received[]): void {
     // Committed effort is spent win or lose (AA8: effort accounted).
     for (const r of accepted) {
-      if (r.action.verb !== "gather") continue;
+      if (r.action.verb !== "gather" && r.action.verb !== "move") continue;
       const cost = effortOf(r.action) - 1;
       if (cost > 0) {
         this.emit("EFFORT_SPENT", r.seatId, { resident: r.seatId, seq: r.seq, cost });
@@ -430,6 +453,64 @@ export class World {
       );
       this.emit("EAT_APPLIED", r.seatId, { resident: r.seatId, seq: r.seq, consumed });
     }
+    this.applyMoves(accepted);
+  }
+
+  /**
+   * Travel. Open roads take everyone. A capped edge (a bridge, the river)
+   * lets at most `crossingCapacity` residents through per tick, both
+   * directions combined; when more try, contention-v1's priority order
+   * decides — committed effort, then initiative, then a journaled seeded
+   * draw — never arrival or seat identity.
+   */
+  private applyMoves(accepted: Received[]): void {
+    const map = this.st.map;
+    if (!map) return;
+    const byEdge = new Map<string, Received[]>();
+    for (const r of accepted) {
+      if (r.action.verb !== "move") continue;
+      const k = edgeKey(this.st.residents[r.seatId].position as string, r.action.args.to as string);
+      byEdge.set(k, [...(byEdge.get(k) ?? []), r]);
+    }
+    for (const k of [...byEdge.keys()].sort()) {
+      const claims = byEdge.get(k) as Received[];
+      const [a, b] = k.split("|");
+      const cap = findEdge(map, a, b)?.crossingCapacity;
+      let granted = claims;
+      if (cap !== undefined) {
+        const rng = rngFor(this.st.seed, this.st.tick, `crossing:${k}`);
+        const ranked = priorityOrder(
+          claims.map((r) => ({
+            seatId: r.seatId,
+            seq: r.seq,
+            requested: 1,
+            effort: effortOf(r.action),
+            initiative: this.st.residents[r.seatId].initiative,
+            draw: rng.uint32(),
+          })),
+        );
+        const through = new Set(ranked.slice(0, cap).map((c) => c.seatId));
+        this.emit("CROSSING_RESOLVED", "engine", {
+          formulaId: this.st.rules.contentionFormula,
+          edge: k,
+          capacity: cap,
+          claims: ranked.map((c, rank) => ({
+            seat: c.seatId, seq: c.seq, effort: c.effort, initiative: c.initiative, draw: c.draw, rank,
+            crossed: through.has(c.seatId),
+          })),
+        });
+        granted = claims.filter((r) => through.has(r.seatId));
+        for (const r of claims) {
+          if (!through.has(r.seatId)) {
+            this.emit("MOVE_DENIED", r.seatId, { resident: r.seatId, seq: r.seq, edge: k, reason: "crossing_full" });
+          }
+        }
+      }
+      for (const r of granted) {
+        const from = this.st.residents[r.seatId].position as string;
+        this.emit("MOVED", r.seatId, { resident: r.seatId, seq: r.seq, from, to: r.action.args.to as string });
+      }
+    }
   }
 
   /**
@@ -466,6 +547,9 @@ export class World {
         maxSatiety,
         actionsPerTick: Math.min(...ps.map((p) => p.actionsPerTick)),
         initiative: Math.floor(ps.reduce((a, p) => a + p.initiative, 0) / ps.length),
+        ...(this.st.map
+          ? { position: ps[0].position, intel: Math.floor(ps.reduce((a, p) => a + p.intel, 0) / ps.length) }
+          : {}),
         genome: child,
         mutation: record,
       });
