@@ -97,7 +97,7 @@ export const NUNEZ_ROYAL_BLOOD_IDENTITY: Readonly<NunezIdentityProfile> = Object
     additionalCrestDetail: null,
   },
   source: "docs/nunez-royal-blood-charter.md",
-});
+} as const);
 
 export function isNunezIdentityProfileId(value: unknown): value is NunezIdentityProfileId {
   return value === NUNEZ_IDENTITY_PROFILE_ID;
