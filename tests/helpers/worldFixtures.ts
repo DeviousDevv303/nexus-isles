@@ -1,4 +1,5 @@
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
+import { lockPathFor } from "../../engine/world/writerLock.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Journal } from "../../ledger/journal.js";
@@ -54,4 +55,14 @@ export function rebuildJournal(w: World): Journal {
     j.append({ tick: e.tick, type: e.type, actor: e.actor, payload: { ...e.payload } });
   }
   return j;
+}
+
+/**
+ * A process restart: the previous process is gone, and its writer lock with
+ * it. (The lock's own refusal and stale-lock takeover are tested in
+ * tests/at02/writer-lock.test.ts.)
+ */
+export function restartFrom(path: string, opts: { snapshotPath?: string } = {}): World {
+  rmSync(lockPathFor(path), { force: true });
+  return World.restoreFromFile(path, opts);
 }

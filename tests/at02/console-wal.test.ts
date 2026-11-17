@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import type { ConsoleSubmission } from "../../console/console.js";
 import { readWal, walPathFor } from "../../engine/world/wal.js";
 import { World } from "../../engine/world/world.js";
-import { baseConfig, drive, tempDir } from "../helpers/worldFixtures.js";
+import { baseConfig, drive, restartFrom, tempDir } from "../helpers/worldFixtures.js";
 
 const sub = (affectsTick: number, o: Partial<ConsoleSubmission> = {}): ConsoleSubmission => ({
   consoleClass: "C1", intent: "raise blight", diff: "rules.blightPercent: 25 -> 30",
@@ -30,7 +30,7 @@ describe("console write-ahead log (Ruling 1)", () => {
     a.w.submitConsoleEvent(sub(6)); // waiting for tick 6
     expect(readWal(a.wal).records.map((r) => r.kind)).toEqual(["console"]);
     // crash: the World object is gone; restart from disk
-    const r = World.restoreFromFile(a.path);
+    const r = restartFrom(a.path);
     drive(r, 3);
     expect(ext(r).map((e) => e.tick)).toEqual([6]);
 
@@ -43,7 +43,7 @@ describe("console write-ahead log (Ruling 1)", () => {
   it("a refusal waiting for its boundary survives a crash too", () => {
     const { path, w } = persisted();
     expect(() => w.submitConsoleEvent(sub(1))).toThrow(/already resolved/);
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     drive(r, 1);
     expect(rej(r).map((e) => e.payload.code)).toEqual(["tick_already_resolved"]);
   });
@@ -55,7 +55,7 @@ describe("console write-ahead log (Ruling 1)", () => {
     copyFileSync(wal, staleWal); // the WAL as it was before the tick landed the record
     drive(w, 1); // tick 4 lands it, journal persisted, WAL compacted
     copyFileSync(staleWal, wal); // simulate the crash: the compaction never happened
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     drive(r, 3);
     expect(ext(r)).toHaveLength(1);
     expect(readWal(wal).records).toEqual([]); // and the stale record was cleared
@@ -80,7 +80,7 @@ describe("console write-ahead log (Ruling 1)", () => {
     const { path, w } = persisted();
     w.submitConsoleEvent(sub(4));
     drive(w, 1);
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     r.submitConsoleEvent(sub(6));
     drive(r, 2);
     expect(ext(r).map((e) => e.payload.walId)).toEqual(["w1", "w2"]);
@@ -102,20 +102,20 @@ describe("console write-ahead log (Ruling 1)", () => {
     const a = persisted();
     a.w.submitConsoleEvent(sub(6));
     appendFileSync(a.wal, '{"walId":"w2","ki');
-    const r = World.restoreFromFile(a.path);
+    const r = restartFrom(a.path);
     drive(r, 3);
     expect(ext(r)).toHaveLength(1);
 
     const b = persisted();
     b.w.submitConsoleEvent(sub(6));
     appendFileSync(b.wal, '{"walId":"w2","ki\n');
-    expect(() => World.restoreFromFile(b.path)).toThrow(/WAL line 2 is complete but unparseable/);
+    expect(() => restartFrom(b.path)).toThrow(/WAL line 2 is complete but unparseable/);
   });
 
   it("a WAL record that can no longer land where it says fails loudly instead of vanishing", () => {
     const { path, wal } = persisted();
     writeFileSync(wal, JSON.stringify({ walId: "w9", kind: "console", payload: { walId: "w9", affectsTick: 2, verbatim: "x" } }) + "\n");
-    expect(() => World.restoreFromFile(path)).toThrow(/targets tick 2, already resolved, and never landed/);
+    expect(() => restartFrom(path)).toThrow(/targets tick 2, already resolved, and never landed/);
   });
 
   it("a stale WAL blocks creating a fresh world over it; no persistence means no WAL", () => {

@@ -21,6 +21,7 @@ import { resolveContention, type Claim, type ClaimOutcome } from "./contention.j
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
 import { priorityOrder } from "./contention.js";
+import { WorldStoppedError, WriterLock, clearStopFile, readStop, writeStop } from "./writerLock.js";
 import { appendWal, readWal, rewriteWal, walPathFor, type WalRecord } from "./wal.js";
 import { rngFor } from "./rng.js";
 import {
@@ -61,6 +62,8 @@ export interface Snapshot {
 }
 
 export interface WorldOptions {
+  /** Take over a lock left by a crashed process on this host (never a live one). */
+  takeOverStaleLock?: boolean;
   /** JSONL journal path. Tail is appended at step 12 of every tick. */
   persistPath?: string;
 }
@@ -75,6 +78,11 @@ export class World {
   private pendingConsole: Record<string, unknown>[] = [];
   /** Next write-ahead id for a console submission (arrival order). */
   private walSeq = 1;
+  /** The exclusive writer lock on the journal file, when persisted. */
+  private writerLock: WriterLock | null = null;
+  /** In-memory stop (always), mirrored to `<journal>.stop` when persisted. */
+  private stopReason: string | null = null;
+  private closed = false;
   private pendingRejections: Record<string, unknown>[] = [];
   private pendingRecovery: Record<string, unknown> | null = null;
   private pendingDriverRejections: Record<string, unknown>[] = [];
@@ -89,6 +97,19 @@ export class World {
   /** Start a new world. Refuses to write over an existing journal file. */
   static create(seed: number, config: WorldConfig, opts: WorldOptions = {}): World {
     validateConfig(config);
+    // One writer per journal: the lock comes before any file is read or written.
+    const lock = opts.persistPath ? WriterLock.acquire(opts.persistPath, opts) : null;
+    try {
+      const world = World.createLocked(seed, config, opts);
+      world.writerLock = lock;
+      return world;
+    } catch (err) {
+      lock?.release();
+      throw err;
+    }
+  }
+
+  private static createLocked(seed: number, config: WorldConfig, opts: WorldOptions): World {
     if (opts.persistPath && existsSync(opts.persistPath) && statSync(opts.persistPath).size > 0) {
       throw new Error(`Refusing to create a world over existing journal ${opts.persistPath}`);
     }
@@ -156,8 +177,21 @@ export class World {
   /** Restart path: load + verify the JSONL journal, then restore from it. */
   static restoreFromFile(
     path: string,
-    opts: { snapshotPath?: string } = {},
+    opts: { snapshotPath?: string; takeOverStaleLock?: boolean } = {},
   ): World {
+    // One writer per journal: lock before the load, because the load may repair the file.
+    const lock = WriterLock.acquire(path, opts);
+    try {
+      const world = World.restoreFromFileLocked(path, opts);
+      world.writerLock = lock;
+      return world;
+    } catch (err) {
+      lock.release();
+      throw err;
+    }
+  }
+
+  private static restoreFromFileLocked(path: string, opts: { snapshotPath?: string }): World {
     // Repair: a torn final fragment is truncated away and an unterminated
     // final entry gets its newline, so the next append starts clean. Both
     // are reported and journaled at the next tick boundary.
@@ -336,7 +370,50 @@ export class World {
     this.pendingBinds = new Map();
   }
 
+  /**
+   * Emergency stop: no further tick runs until the stop is cleared. Ticks
+   * are synchronous, so this always takes effect at a tick boundary and the
+   * journal still ends at a commit. Persisted worlds also write
+   * `<journal>.stop`, so the stop survives a restart and an operator can set
+   * it from outside the process.
+   */
+  requestStop(reason: string): void {
+    if (!reason) throw new Error("an emergency stop needs a reason");
+    this.stopReason = reason;
+    if (this.persistPath) writeStop(this.persistPath, reason);
+  }
+
+  /** Lift the stop, deliberately. */
+  clearStop(): void {
+    this.stopReason = null;
+    if (this.persistPath) clearStopFile(this.persistPath);
+  }
+
+  /** Why the world is stopped, or null if it may tick. */
+  get stopped(): string | null {
+    if (this.stopReason) return this.stopReason;
+    return this.persistPath ? readStop(this.persistPath) : null;
+  }
+
+  /** Release the writer lock. A closed world never ticks again. */
+  close(): void {
+    this.closed = true;
+    this.writerLock?.release();
+    this.writerLock = null;
+  }
+
+  /** Every refusal to tick, checked before anything in the tick happens. */
+  private assertMayTick(): void {
+    if (this.closed) throw new Error("world is closed");
+    const stop = this.stopped;
+    if (stop) throw new WorldStoppedError(stop);
+    if (this.writerLock && !this.writerLock.stillHeld()) {
+      throw new Error("this world no longer holds its journal's writer lock; refusing to tick");
+    }
+  }
+
   tick(): void {
+    this.assertMayTick();
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepRecovery(); // what the restore repaired, on the record

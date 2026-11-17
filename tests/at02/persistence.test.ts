@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { World } from "../../engine/world/world.js";
-import { baseConfig, drive, tempDir } from "../helpers/worldFixtures.js";
+import { baseConfig, drive, restartFrom, tempDir } from "../helpers/worldFixtures.js";
 
 describe("AT-02 persistence", () => {
   it("run -> restart -> continue equals one uninterrupted run", () => {
@@ -14,7 +14,7 @@ describe("AT-02 persistence", () => {
     const first = World.create(77, baseConfig(), { persistPath: path });
     drive(first, 20);
 
-    const restarted = World.restoreFromFile(path); // simulated process restart
+    const restarted = restartFrom(path); // simulated process restart
     expect(restarted.headHash).toBe(first.headHash);
     expect(restarted.state).toEqual(first.state);
     drive(restarted, 20);
@@ -29,7 +29,7 @@ describe("AT-02 persistence", () => {
     const path = join(tempDir(), "w.jsonl");
     const w = World.create(3, baseConfig(), { persistPath: path });
     drive(w, 10);
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     drive(r, 10);
     const lines = readFileSync(path, "utf8").trim().split("\n");
     expect(lines).toHaveLength(r.entries().length);
@@ -43,7 +43,7 @@ describe("AT-02 persistence", () => {
     const w = World.create(1, cfg, { persistPath: path });
     for (let i = 0; i < 5; i++) w.tick();
     expect(w.state.residents.alpha.alive).toBe(false);
-    const r = World.restoreFromFile(path);
+    const r = restartFrom(path);
     expect(r.state.residents.alpha.alive).toBe(false);
     expect(r.state.residents.alpha.diedAtTick).toBe(w.state.residents.alpha.diedAtTick);
     expect(r.observe("alpha")).toBeNull();
@@ -57,8 +57,8 @@ describe("AT-02 persistence", () => {
     drive(w, 15);
     w.writeSnapshot(snapPath);
     drive(w, 10);
-    const viaSnap = World.restoreFromFile(path, { snapshotPath: snapPath });
-    const viaReplay = World.restoreFromFile(path);
+    const viaSnap = restartFrom(path, { snapshotPath: snapPath });
+    const viaReplay = restartFrom(path);
     expect(viaSnap.state).toEqual(viaReplay.state);
     expect(viaSnap.headHash).toBe(w.headHash);
   });
@@ -74,7 +74,7 @@ describe("AT-02 persistence", () => {
     snap.state.residents.alpha.inventory = 9999; // forged wealth
     writeFileSync(snapPath, JSON.stringify(snap));
     drive(w, 5);
-    const r = World.restoreFromFile(path, { snapshotPath: snapPath });
+    const r = restartFrom(path, { snapshotPath: snapPath });
     expect(r.state.residents.alpha.inventory).toBe(w.state.residents.alpha.inventory);
     expect(r.state).toEqual(w.state);
   });
@@ -86,7 +86,7 @@ describe("AT-02 persistence", () => {
     const w = World.create(2, baseConfig(), { persistPath: path });
     drive(w, 5);
     writeFileSync(snapPath, "not json");
-    expect(World.restoreFromFile(path, { snapshotPath: snapPath }).state).toEqual(w.state);
+    expect(restartFrom(path, { snapshotPath: snapPath }).state).toEqual(w.state);
   });
 
   it("a tampered journal file refuses to load (ledger chain)", () => {
@@ -95,12 +95,12 @@ describe("AT-02 persistence", () => {
     drive(w, 5);
     const raw = readFileSync(path, "utf8").replace('"grove"', '"grovf"');
     writeFileSync(path, raw);
-    expect(() => World.restoreFromFile(path)).toThrow(/verification/);
+    expect(() => restartFrom(path)).toThrow(/verification/);
   });
 
   it("refuses to create over an existing journal (the concatenation hazard)", () => {
     const path = join(tempDir(), "w.jsonl");
-    World.create(4, baseConfig(), { persistPath: path });
+    World.create(4, baseConfig(), { persistPath: path }).close();
     expect(() => World.create(4, baseConfig(), { persistPath: path })).toThrow(/existing journal/);
   });
 
@@ -110,6 +110,6 @@ describe("AT-02 persistence", () => {
     drive(w, 3);
     const lines = readFileSync(path, "utf8").trim().split("\n");
     writeFileSync(path, lines.slice(0, -1).join("\n") + "\n"); // drop final commit
-    expect(() => World.restoreFromFile(path)).toThrow(/mid-tick/);
+    expect(() => restartFrom(path)).toThrow(/mid-tick/);
   });
 });

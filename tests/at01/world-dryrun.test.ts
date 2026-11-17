@@ -11,14 +11,7 @@ import { describe, expect, it } from "vitest";
 import { World } from "../../engine/world/world.js";
 import { hashState } from "../../engine/world/state.js";
 import { deriveReport } from "../../observer/report.js";
-import {
-  baseConfig,
-  drive,
-  policy,
-  rebuildJournal,
-  SEATS,
-  tempDir,
-} from "../helpers/worldFixtures.js";
+import { SEATS, baseConfig, drive, policy, rebuildJournal, restartFrom, tempDir } from "../helpers/worldFixtures.js";
 
 describe("dry-run epoch through the world core (AT-01, step 7)", () => {
   it("two epochs from one seed are identical — journal and state", () => {
@@ -61,7 +54,7 @@ describe("dry-run epoch through the world core (AT-01, step 7)", () => {
     const path = join(dir, "epoch.jsonl");
     const world = World.create(7, baseConfig(), { persistPath: path });
     drive(world, 8);
-    const restored = World.restoreFromFile(path);
+    const restored = restartFrom(path);
     expect(restored.headHash).toBe(world.headHash);
     expect(hashState(restored.state)).toBe(hashState(world.state));
   });
