@@ -435,18 +435,6 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
-    case "MOVED": {
-      // One edge per tick, along an edge that exists, from where the
-      // resident actually is. Capacity was decided by CROSSING_RESOLVED.
-      const r = next.residents[str(p, "resident")];
-      const from = str(p, "from");
-      const to = str(p, "to");
-      const map = state.map;
-      const adjacent = map ? map.edges.some((e) => (e.a === from && e.b === to) || (e.b === from && e.a === to)) : false;
-      if (!r || !r.alive || r.position !== from || !adjacent) throw new Error("MOVED invariant violated");
-      r.position = to;
-      return next;
-    }
     case "SEAT_BACKEND_BOUND": {
       // AA11: a backend change is a journaled engine event. Identity, memory,
       // genome and history are untouched — the brain is replaceable, the
@@ -458,6 +446,18 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         throw new Error("SEAT_BACKEND_BOUND invariant violated (previous mismatch)");
       }
       r.backend = { providerId: to.providerId, version: to.version };
+      return next;
+    }
+    case "MOVED": {
+      // One edge per tick, along an edge that exists, from where the
+      // resident actually is. Capacity was decided by CROSSING_RESOLVED.
+      const r = next.residents[str(p, "resident")];
+      const from = str(p, "from");
+      const to = str(p, "to");
+      const map = state.map;
+      const adjacent = map ? map.edges.some((e) => (e.a === from && e.b === to) || (e.b === from && e.a === to)) : false;
+      if (!r || !r.alive || r.position !== from || !adjacent) throw new Error("MOVED invariant violated");
+      r.position = to;
       return next;
     }
     case "DEATH": {
