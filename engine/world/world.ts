@@ -21,7 +21,7 @@ import { resolveContention, type Claim, type ClaimOutcome } from "./contention.j
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
 import { priorityOrder } from "./contention.js";
-import { WorldStoppedError, WriterLock, clearStopFile, readStop, writeStop } from "./writerLock.js";
+import { WorldStoppedError, WriterLock, checkTickDelivery, clearStopFile, readStop, writeStop } from "./writerLock.js";
 import { appendWal, readWal, rewriteWal, walPathFor, type WalRecord } from "./wal.js";
 import { rngFor } from "./rng.js";
 import {
@@ -403,8 +403,9 @@ export class World {
   }
 
   /** Every refusal to tick, checked before anything in the tick happens. */
-  private assertMayTick(): void {
+  private assertMayTick(expectTick?: number): void {
     if (this.closed) throw new Error("world is closed");
+    checkTickDelivery(expectTick, this.st.tick + 1);
     const stop = this.stopped;
     if (stop) throw new WorldStoppedError(stop);
     if (this.writerLock && !this.writerLock.stillHeld()) {
@@ -412,8 +413,14 @@ export class World {
     }
   }
 
-  tick(): void {
-    this.assertMayTick();
+  /**
+   * Resolve one tick. `expectTick` gives the delivery an identity: when set,
+   * the tick happens only if it is exactly the next one, so a scheduler that
+   * redelivers (a retry, a doubled timer, a restart that did not see its own
+   * commit) can never produce a second tick for the same slot.
+   */
+  tick(opts: { expectTick?: number } = {}): void {
+    this.assertMayTick(opts.expectTick);
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepRecovery(); // what the restore repaired, on the record
