@@ -113,7 +113,11 @@ export class World {
     }
     const entries = journal.entries();
     if (entries.length === 0) throw new Error("Cannot restore from an empty journal");
-    if (entries[entries.length - 1].type !== "TICK_COMMIT") {
+    let lastCommit = -1;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].type === "TICK_COMMIT") lastCommit = i;
+    }
+    if (lastCommit < 0 || entries.length - 1 !== lastCommit) {
       throw new Error("Journal ends mid-tick (no closing TICK_COMMIT)");
     }
     let state: WorldState | null = null;
