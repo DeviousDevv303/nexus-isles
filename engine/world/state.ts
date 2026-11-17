@@ -492,6 +492,8 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
     case "REPRODUCTION_FAILED":
     case "ACTION_ACCEPTED":
     case "ACTION_REJECTED":
+    case "DYNASTY_SCORE_EPOCH_OPENED":
+    case "DYNASTY_SCORE_EPOCH_CLOSED":
       return state;
     default:
       throw new Error(`Unknown journal entry type: ${entry.type}`);

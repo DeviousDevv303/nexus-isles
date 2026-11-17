@@ -1,8 +1,9 @@
-# Observer (build order step 6 — journal-derived reporting implemented)
+# Observer (build order step 6 — journal-derived reporting)
 
-report.ts derives every displayed number from the journal and nothing
-else (Annex A.1, Truthful Interface): totals, per-type counts, per-actor
-action counts, resolved ticks, console events, deaths. Deterministic —
-the same journal derives the same report, including after save/load, so
-journal replay reproduces the displayed world (tests/at18). The live
-viewer feed and benchmark report formats build on this derivation.
+`report.ts` derives displayed world counts from the journal (Annex A.1). `dynastyScore.ts` implements the Annex B `dynasty-score-v1` projection. It requires a valid hash chain and a successful world replay before scoring. The observer journals the score version, weights, axis definitions, active-lineage snapshot, tick convention, and unresolved interpretations at epoch open. At close it journals the reproducible score and the source journal head; subsequent reads recompute and compare the score rather than trusting the recorded number.
+
+The score normalizes each available raw axis against the active lineages at epoch close, applies `sqrt(normalized)`, and renormalizes weights across available axes. Available zero evidence remains a known zero; absent evidence is `MISSING` (`rawValue: null`). The current world supports only the survival axis. Territory-years stays `MISSING`: map positions or movement show presence, not region control, and no improvement ledger exists. Verified artifacts stay `MISSING` without third-party citation/use events. Successor continuity stays `MISSING` until the owner resolves the heir and own-agency clock reading. Wealth-resilience stays `MISSING` without income-source, upkeep, and productive-deployment records. These axes are never inferred from proposals, predictions, free-text console entries, inventory, or resident position.
+
+Survival counts full resolved ticks after the open boundary. A resident is counted as alive at a tick's start if their birth was before that tick and their death was at or after it. A birth during a tick begins its first full own-agency survival tick on the following tick; a death during a tick counts as alive at that tick's start. This convention is stored in the epoch-open record.
+
+`World.openDynastyScoreEpoch` and `World.closeDynastyScoreEpoch` add audit-only entries. World restore accepts those entries after a committed tick and replays them without changing game state. Tests for the score contract are in `tests/at21/dynasty-score.test.ts`.

@@ -36,6 +36,7 @@ import {
 import { executeSuccession } from "../../lineage/succession.js";
 import { validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
 import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
+import type { DynastyScoreEpochClosePayload, DynastyScoreEpochOpenPayload } from "../../observer/dynastyScoreSpec.js";
 
 interface Received {
   seatId: string;
@@ -111,7 +112,13 @@ export class World {
     }
     const entries = journal.entries();
     if (entries.length === 0) throw new Error("Cannot restore from an empty journal");
-    if (entries[entries.length - 1].type !== "TICK_COMMIT") {
+    let lastCommit = -1;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].type === "TICK_COMMIT") lastCommit = i;
+    }
+    if (lastCommit < 0 || entries.slice(lastCommit + 1).some((entry) =>
+      entry.type !== "DYNASTY_SCORE_EPOCH_OPENED" && entry.type !== "DYNASTY_SCORE_EPOCH_CLOSED",
+    )) {
       throw new Error("Journal ends mid-tick (no closing TICK_COMMIT)");
     }
     let state: WorldState | null = null;
@@ -163,6 +170,50 @@ export class World {
   }
   entries(): readonly JournalEntry[] {
     return this.journal.entries();
+  }
+
+  /** Append a version-pinned observer contract at a committed epoch boundary. */
+  openDynastyScoreEpoch(payload: DynastyScoreEpochOpenPayload): void {
+    const entries = this.journal.entries();
+    const tail = entries[entries.length - 1];
+    if (!tail || (tail.type !== "TICK_COMMIT" && tail.type !== "DYNASTY_SCORE_EPOCH_CLOSED")) {
+      throw new Error("dynasty-score epoch can open only at a committed boundary");
+    }
+    if (!payload.epochId || payload.startTick !== this.st.tick) {
+      throw new Error("dynasty-score epoch open payload does not match the current world boundary");
+    }
+    const opened = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_OPENED")
+      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
+    const closed = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_CLOSED")
+      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
+    if ([...opened].some((id) => !closed.has(id))) throw new Error("a dynasty-score epoch is already open");
+    if (opened.has(payload.epochId)) throw new Error(`dynasty-score epoch ${payload.epochId} already exists`);
+    this.emit("DYNASTY_SCORE_EPOCH_OPENED", "engine", payload as unknown as Record<string, unknown>);
+    this.persist();
+  }
+
+  /** Append the reproducible close snapshot for the currently open epoch. */
+  closeDynastyScoreEpoch(payload: DynastyScoreEpochClosePayload): void {
+    const entries = this.journal.entries();
+    const tail = entries[entries.length - 1];
+    if (!tail || (tail.type !== "TICK_COMMIT" && tail.type !== "DYNASTY_SCORE_EPOCH_OPENED")) {
+      throw new Error("dynasty-score epoch can close only at a committed boundary");
+    }
+    const opened = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_OPENED")
+      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
+    const closed = new Set(entries.filter((entry) => entry.type === "DYNASTY_SCORE_EPOCH_CLOSED")
+      .map((entry) => entry.payload.epochId).filter((id): id is string => typeof id === "string"));
+    if (!opened.has(payload.epochId) || closed.has(payload.epochId)) {
+      throw new Error(`dynasty-score epoch ${payload.epochId} is not open`);
+    }
+    if (payload.endTick !== this.st.tick || payload.sourceJournalHead !== this.journal.headHash()) {
+      throw new Error("dynasty-score close payload does not match the current journal boundary");
+    }
+    if (typeof payload.score !== "object" || payload.score === null) {
+      throw new Error("dynasty-score close payload must include a score record");
+    }
+    this.emit("DYNASTY_SCORE_EPOCH_CLOSED", "engine", payload as unknown as Record<string, unknown>);
+    this.persist();
   }
 
   /**
