@@ -497,3 +497,72 @@ owner's word closes. On landing, Claude reconciles PR #19 to this brief
 (his extra item 9) so the world track has ONE specification.
 
 — Muse, ForgeClaw Coding Specialist (draft, 2026-11-17)
+
+---
+
+## 12. Reconciliation with the integrated world-track spec + implementation feasibility audit (Claude)
+
+*Claude's lane, queue item 9 (#235 6950678244), and the brief's own audit-route step "Claude audits implementation feasibility". This section makes the brief the ONE world-track document. PR #19 (`docs/specs/world-track-v0-draft.md`, rev 3) is retired in its favour, and the parts of rev 3 the brief did not already carry live here. Status of everything in this section: DRAFT, nothing authorized.*
+
+### 12.1 Where each part of rev 3 went
+
+| Rev 3 element | Lands in | Disposition |
+|---|---|---|
+| The boundary: circumstances generated, decisions by seats, nothing else changes the world | §3 (Kimi's corrections), §5 Layer 3 | **Merged.** The brief says it more fully |
+| Who-may-do-what table (engine, Quinn, institutions, residents, Guardian, owner) | §2, §3, §5 | **Merged**, no conflict |
+| Environment circumstance list (day/night, season, heat, dust, flood, background traffic) | §4 + 12.3 below | **Kept here** as the concrete Phase 1 list; §4 states the principle |
+| No-target rule: a circumstance never names a resident, lineage or institution, and never stands in for a choice a seat could make (GPT-3) | §5 Layer 3 | **Merged.** Rev 3's "checkpoint posture is a decision" correction is the worked example |
+| Quinn's action shape: typed `world_event`, budget, RNG resolves | §5 (Directorate mechanics) | **Merged.** One open difference, 12.2(1) |
+| Institutions as a new `organization` kind, not lineages | — | **Kept here** (12.3); the brief is silent |
+| Institution seats have no chat-box principal | — | **Kept here** (12.3); the brief is silent |
+| Federal seat (a) OFO-only, Anapra gap disclosed | §5 GPT addition 2 | **Merged**, identical |
+| Fiction Safeguard, real institutions, dignity, closed-world seal, attention mechanics | §6 | **Merged.** The brief's §6 is the fuller text |
+| Names registry + abstraction gate | §6 Enforcement | **Merged.** The brief adds fail-closed, never rewrite |
+| Contradictions list | §11 | **Merged.** Rev 3's open items all appear in §11's owner taps |
+| Build order | 12.4 below | **Kept here**, re-ordered against the brief |
+
+### 12.2 Differences between rev 3 and the brief that need a call
+
+1. **Can a Quinn proposal name a seat?** Rev 3 said a `world_event` may name a *place*, never a resident, lineage or institution, so favouritism is impossible by construction and checkable by the validator. The brief's §10 key scenario ("Quinn proposes an event benefiting the founding lineage; the validator must evaluate it under the same rules") implies a proposal could name or target a lineage, with fairness enforced by equal treatment. **Recommendation: rev 3's rule** (place-only). It turns §10's key scenario into a structural impossibility rather than a judgment the validator has to make, and it's a one-line validator check. If the owner wants seat-targeted events (e.g. an audit of one lineage), that's a named exception class, not the default.
+2. **Who reads "heat"?** §7 says heat is an internal variable visible to no seat. The engine as built has one state, and the journal that carries it is the publicly auditable record (§9a). So heat in state is visible to every journal reader: auditors, Guardian, the owner, and Manus's read-only world viewer (queue item 2). That is consistent with §9 (auditors may see what seats can't) **only if** the viewer is labelled an auditor surface and never a seat's view. That needs writing down before the viewer ships.
+3. **Chat's home.** The `chat-restart-loss` PROVISIONAL item (seats/chat.ts) says chat is memory-only. §9's restricted confidential store is the natural durable home for it (encrypted, AA7-scrubbable, never in the journal). Flagged so the two don't evolve separately. No change until §9 is adopted.
+
+### 12.3 Implementation feasibility audit (against main `77aab41`)
+
+| Brief element | State in the engine | Feasibility |
+|---|---|---|
+| §3.2 replay re-executes the engine, never the minds | **Built.** Replay folds the journal; it never calls a backend (AT-14, AT-18 v/vi in PR #24) | — |
+| §2/§8 model identity + version per action | **Built.** AT-20 stamps `backend` on every action record; swaps journaled | — |
+| §8/§9a prompt **hash** and input references per action | **Not built.** The driver (PR #21) journals no prompt material at all, which is correct for raw content, but there is no hash either | **Buildable now:** the driver hashes the exact backend input and the action record carries `promptHash` + `inputRef`. Small, and touches the AT-20 record shape |
+| §9b restricted confidential store | **Not built** | Needs its own design: encryption keys, access log, AA7 deletion, fail-closed. Not small |
+| §4 environment engine (circumstances only) | **Partly built.** Seeded `ENV_BLIGHT` + regen exist; no weather, season, daylight or traffic | **Buildable now** as engine work: each circumstance is a seeded stream emitting a journaled delta (the existing pattern). Parameters go in `governance/registry.json` as `climate-v1` PROVISIONAL |
+| §4 no-target rule as a gate | — | **Buildable now:** an RG-style check that the environment module never imports seat or lineage state, and that circumstance payloads name only regions or edges |
+| §4 scheduler safeguards | **Partly built.** Crash recovery: torn-tail (PR #22), WAL + one append per tick (PR #23). **Missing:** duplicate-tick prevention (a lock or lease), resource limits, emergency stop | **Buildable now.** Duplicate-tick prevention is the important one, because two schedulers on one journal would fork it |
+| §5 institution seats (3) | **Not built.** Seats exist; institutions don't | Needs the `organization` entity kind (not a lineage, so excluded from dynasty score and succession) and three drivers. Each driver is a real AI seat, so three more seat-driver integrations to build and audit |
+| §5 institution seats have no principal | — | **Buildable now:** `ChatBox.enrol` refuses organization seats |
+| §5 Quinn Directorate seat | **Not built** | **Buildable** once 12.2(1) is decided: a `world_event` verb, a per-epoch budget in the validator, RNG resolution, journaled proposal + result. Needs owner authorization |
+| §6 attention mechanics, `intel-attention-v1` | **Not built**, and nothing to attach it to yet | Depends on institution seats + the §7 heat variable. Not before those |
+| §6 Fiction Safeguard lint | **Not built** | **Buildable now** beside the RG gates (PR #18 pattern): a names registry, fail-closed |
+| §7 heat as world bookkeeping | **Not built** | Engine-side it's a per-lineage state variable with journaled deltas. Blocked on 12.2(2) for the viewer |
+| §8 Qwen World Intelligence | **Not built** | Out of engine scope: it produces sourced proposals that enter like any seat's. The engine needs nothing new for it beyond the Quinn path |
+| §10 founder-privilege test | **Partly built.** Tier-0 parity tests exist for contention (AT-15) and seat protocol (AT-10) | Extends naturally to every new verb: one parity test per proposal type |
+| Real crossing network (Stanton–Lerdo etc.) vs T6's `juarez-v1` | T6 has 3 bridges + 1 river crossing | **Buildable now** as `juarez-v2` (a new map id, not an edit, so old journals still replay). Capacities PROVISIONAL |
+
+**Headline:** nothing in the brief is infeasible on this engine.
+- **Buildable now** (each needing only the owner's go): the prompt-hash field, the environment circumstances, the no-target gate, duplicate-tick prevention, the Fiction Safeguard lint and `juarez-v2`.
+- **Waiting on a ruling:** Quinn (12.2(1)), heat (12.2(2)), and the institution seats (owner authorization, plus the `organization` kind).
+- **Needs real design work:** the confidential store (§9b).
+
+### 12.4 Build order once authorized
+
+1. **Duplicate-tick prevention + emergency stop.** They gate any unattended run, and every later item runs on that scheduler.
+2. **Prompt hash + input reference on action records.** Cheap, and every later seat inherits it.
+3. **Environment circumstances (`climate-v1`) + the no-target gate.**
+4. **`juarez-v2` real crossing network.**
+5. **Fiction Safeguard lint.**
+6. **`organization` entity kind + three institution seats** (no principal; OFO-only federal seat unless the owner rules otherwise).
+7. **Quinn Directorate seat** (after 12.2(1)).
+8. **Heat + attention (`intel-attention-v1`)** (after 12.2(2) and item 6).
+9. **The §9b confidential store**, its own design track; chat's durable home (12.2(3)).
+
+Every new number enters `governance/registry.json` as PROVISIONAL on day one (the RG gates enforce it).
