@@ -8,12 +8,12 @@ import { describe, expect, it } from "vitest";
 import { formatNunezIdentityForConsole } from "../../console/identity.js";
 import { baseConfig, rebuildJournal } from "../helpers/worldFixtures.js";
 import { World } from "../../engine/world/world.js";
-import { NUNEZ_ROYAL_BLOOD_IDENTITY, nunezIdentityPresentation } from "../../lineage/nunezIdentity.js";
+import { nunezIdentityPresentation } from "../../lineage/nunezIdentity.js";
 import { deriveReport } from "../../observer/report.js";
 
 describe("T8 Núñez identity layer", () => {
   it("uses only the Charter's stated office, sigil, and equipment constraints", () => {
-    const profile = NUNEZ_ROYAL_BLOOD_IDENTITY;
+    const profile = nunezIdentityPresentation().profile;
     expect(profile.lineageName).toBe("Núñez Royal Blood");
     expect(profile.officeBearerDescription).toBe("head of the Núñez Royal Blood");
     expect(profile.lineageRepresentative).toEqual({
@@ -42,7 +42,7 @@ describe("T8 Núñez identity layer", () => {
   });
 
   it("carries the requested all-black owner depiction without presenting it as a live sitter", () => {
-    expect(NUNEZ_ROYAL_BLOOD_IDENTITY.appearance).toEqual({
+    expect(nunezIdentityPresentation().profile.appearance).toEqual({
       familyIdentity: "all-black tactical dress",
       ownerCharacter: {
         setting: "on the Throne",

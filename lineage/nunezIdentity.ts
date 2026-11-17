@@ -5,7 +5,7 @@
 // lineage binding, procurement/maintenance, and seat succession remain outside
 // this presentation-only item and must not be inferred from this profile.
 
-export const NUNEZ_IDENTITY_PROFILE_ID = "nunez-royal-blood" as const;
+const NUNEZ_IDENTITY_PROFILE_ID = "nunez-royal-blood" as const;
 export type NunezIdentityProfileId = typeof NUNEZ_IDENTITY_PROFILE_ID;
 
 /** The identity contract is descriptive data, not world state or an asset grant. */
@@ -54,7 +54,7 @@ export interface NunezIdentityProfile {
   source: "docs/nunez-royal-blood-charter.md";
 }
 
-export const NUNEZ_ROYAL_BLOOD_IDENTITY: Readonly<NunezIdentityProfile> = Object.freeze({
+const NUNEZ_ROYAL_BLOOD_IDENTITY: Readonly<NunezIdentityProfile> = Object.freeze({
   profileId: NUNEZ_IDENTITY_PROFILE_ID,
   lineageName: "Núñez Royal Blood",
   officeBearerDescription: "head of the Núñez Royal Blood",
