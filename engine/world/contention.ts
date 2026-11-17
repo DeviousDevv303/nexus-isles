@@ -17,6 +17,10 @@
 //
 // Allocation: each claim in order receives min(requested, remaining).
 //
+// PROVISIONAL — owner-ratification item (registry: contention-v1-constants):
+// the ordering is AA8's; effort cost (effort - 1 satiety), max effort and
+// default initiative are this build's numbers, not ratified text.
+//
 // What the order may depend on: effort, initiative, the journaled draw.
 // What it may NEVER depend on (AT-15, Tier-0 parity): request size, seat
 // id, tier, provider, backend, or arrival time. This module's inputs do not

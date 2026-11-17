@@ -1,0 +1,224 @@
+{
+  "$comment": "The mechanical registry the RG gates check against (tests/governance/rg-gates.test.ts). Every exported constant in the validation path must be listed here. Statuses: PROVISIONAL (an interpretation or number awaiting the owner; needs an in-code marker naming this id and a test), CONSTITUTIONAL (fixed by constitution text; needs a section reference found in the cited document), RATIFIED (needs an owner ruling id from owner-rulings.json), STRUCTURAL (an identifier or vocabulary with no policy content), RESERVED (must not be implemented until ratified). Changing a status is a governance act: PROVISIONAL -> RATIFIED requires an owner ruling id (RG-4).",
+  "entries": [
+    {
+      "id": "contention-v1-constants",
+      "status": "PROVISIONAL",
+      "why": "AA8 states the principle only; effort cost, max effort and default initiative are build choices",
+      "symbols": [
+        {
+          "file": "engine/world/state.ts",
+          "name": "DEFAULT_MAX_EFFORT"
+        }
+      ],
+      "markers": [
+        "engine/world/state.ts",
+        "engine/world/contention.ts"
+      ],
+      "tests": [
+        "tests/at15/aa8-formula.test.ts"
+      ]
+    },
+    {
+      "id": "reproduction-v0",
+      "status": "PROVISIONAL",
+      "why": "Reproduction cost and child starting stats are build choices",
+      "symbols": [
+        {
+          "file": "engine/world/state.ts",
+          "name": "DEFAULT_REPRODUCTION_COST"
+        }
+      ],
+      "markers": [
+        "engine/world/state.ts"
+      ],
+      "tests": [
+        "tests/aa12/entities.test.ts"
+      ]
+    },
+    {
+      "id": "map-v1",
+      "status": "PROVISIONAL",
+      "why": "Observation radius, crossing capacities and node placement are Phase 1 proposals",
+      "symbols": [
+        {
+          "file": "engine/world/state.ts",
+          "name": "DEFAULT_INTEL"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "MAX_INTEL"
+        },
+        {
+          "file": "engine/world/maps/juarez.ts",
+          "name": "JUAREZ_RULES"
+        },
+        {
+          "file": "engine/world/maps/juarez.ts",
+          "name": "JUAREZ_MAP_ID"
+        }
+      ],
+      "markers": [
+        "engine/world/state.ts",
+        "engine/world/maps/juarez.ts"
+      ],
+      "tests": [
+        "tests/at06/hidden-information.test.ts",
+        "tests/map/juarez-travel.test.ts"
+      ]
+    },
+    {
+      "id": "t2-readings",
+      "status": "PROVISIONAL",
+      "why": "Dynasty, family and successor-continuity readings of one-line AA12 definitions",
+      "symbols": [],
+      "markers": [
+        "lineage/entities.ts"
+      ],
+      "tests": [
+        "tests/aa12/entities.test.ts"
+      ]
+    },
+    {
+      "id": "seat-identity-v1",
+      "status": "PROVISIONAL",
+      "why": "One principal per seat and one seat per principal",
+      "symbols": [],
+      "markers": [
+        "seats/chat.ts"
+      ],
+      "tests": [
+        "tests/aa7/chat-box.test.ts"
+      ]
+    },
+    {
+      "id": "chat-restart-loss",
+      "status": "PROVISIONAL",
+      "why": "Chat enrolments, messages and approaches are memory-only and lost on restart",
+      "symbols": [],
+      "markers": [
+        "seats/chat.ts"
+      ],
+      "tests": [
+        "tests/aa7/chat-box.test.ts"
+      ]
+    },
+    {
+      "id": "ring-compartments-strict",
+      "status": "PROVISIONAL",
+      "why": "The top ring cannot read lower rings' traffic; open owner question",
+      "symbols": [],
+      "markers": [
+        "seats/channels.ts"
+      ],
+      "tests": [
+        "tests/aa7/channel-scopes.test.ts"
+      ]
+    },
+    {
+      "id": "continuity-min-ticks",
+      "status": "CONSTITUTIONAL",
+      "why": "Successor continuity counts only after 10 ticks of own-agency survival",
+      "source": {
+        "doc": "docs/constitution-v0.6.7.txt",
+        "ref": "AA1"
+      },
+      "symbols": [
+        {
+          "file": "lineage/entities.ts",
+          "name": "CONTINUITY_MIN_TICKS"
+        }
+      ]
+    },
+    {
+      "id": "genome-min-eligible-fields",
+      "status": "CONSTITUTIONAL",
+      "why": "Erratum E1: the genome schema guarantees N >= 4 eligible mutable fields",
+      "source": {
+        "doc": "docs/constitution-v0.6.7.txt",
+        "ref": "AA12"
+      },
+      "symbols": [
+        {
+          "file": "lineage/genome.ts",
+          "name": "MIN_ELIGIBLE_FIELDS"
+        }
+      ]
+    },
+    {
+      "id": "engine-vocabulary",
+      "status": "STRUCTURAL",
+      "why": "Identifiers and vocabularies with no policy content",
+      "symbols": [
+        {
+          "file": "engine/world/validator.ts",
+          "name": "VERBS"
+        },
+        {
+          "file": "engine/world/contention.ts",
+          "name": "CONTENTION_FORMULA_ID"
+        },
+        {
+          "file": "engine/world/contention.ts",
+          "name": "KNOWN_FORMULAS"
+        },
+        {
+          "file": "lineage/genome.ts",
+          "name": "GENOME_SPEC_VERSION"
+        },
+        {
+          "file": "lineage/mutation.ts",
+          "name": "MUTATION_BUDGET_VERSION"
+        },
+        {
+          "file": "seats/credentials.ts",
+          "name": "ALL_SCOPES"
+        }
+      ]
+    },
+    {
+      "id": "dynasty-score-v1",
+      "status": "RATIFIED",
+      "why": "Annex B dynasty-score weights adopted by the owner; their use is governed by ratified erratum E6",
+      "source": {
+        "ruling": "6937295727"
+      },
+      "symbols": [
+        {
+          "file": "governance/dynastyScoreSpec.ts",
+          "name": "DYNASTY_SCORE_VERSION"
+        },
+        {
+          "file": "governance/dynastyScoreSpec.ts",
+          "name": "DYNASTY_SCORE_WEIGHTS"
+        }
+      ],
+      "tests": [
+        "tests/at21/dynasty-score.test.ts"
+      ]
+    },
+    {
+      "id": "dynasty-score-v1-axes",
+      "status": "PROVISIONAL",
+      "why": "Axis definitions carry unratified readings (heir eligibility, wealth subweights) pending the owner's word",
+      "symbols": [
+        {
+          "file": "governance/dynastyScoreSpec.ts",
+          "name": "DYNASTY_SCORE_AXIS_DEFINITIONS"
+        }
+      ],
+      "markers": [
+        "governance/dynastyScoreSpec.ts"
+      ],
+      "tests": [
+        "tests/at21/dynasty-score.test.ts"
+      ]
+    },
+    {
+      "id": "territory-control",
+      "status": "RESERVED",
+      "why": "Owner ruling 6937184242: no lane invents or implements a territorial-control definition until the owner ratifies one",
+      "tripwire": "\\b(computeControl|CONTROL_CHANGED|territoryControl|controlledRegions?|controlRule)\\b"
+    }
+  ]
+}

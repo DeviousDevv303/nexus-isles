@@ -34,7 +34,7 @@ import {
   type WorldState,
 } from "./state.js";
 import { executeSuccession } from "../../lineage/succession.js";
-import { validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
+import { ConsoleRejection, validateConsoleSubmission, type ConsoleSubmission } from "../../console/console.js";
 import { draftInstrument, inventoryRef, successionContext, validateAction } from "./validator.js";
 
 interface Received {
@@ -72,6 +72,8 @@ export class World {
   private pending = new Map<string, Queued[]>();
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
+  private pendingRejections: Record<string, unknown>[] = [];
+  private pendingDriverRejections: Record<string, unknown>[] = [];
 
   private constructor(
     private readonly journal: Journal,
@@ -111,7 +113,11 @@ export class World {
     }
     const entries = journal.entries();
     if (entries.length === 0) throw new Error("Cannot restore from an empty journal");
-    if (entries[entries.length - 1].type !== "TICK_COMMIT") {
+    let lastCommit = -1;
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].type === "TICK_COMMIT") lastCommit = i;
+    }
+    if (lastCommit < 0 || entries.length - 1 !== lastCommit) {
       throw new Error("Journal ends mid-tick (no closing TICK_COMMIT)");
     }
     let state: WorldState | null = null;
@@ -215,6 +221,15 @@ export class World {
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }
 
+  /** Queue a driver refusal; only its safe reason and backend provenance enter the journal. */
+  recordDriverRefusal(seatId: string, backend: BackendRef, reason: string): void {
+    this.pendingDriverRejections.push({
+      seat: seatId,
+      backend: { providerId: backend.providerId, version: backend.version },
+      reason,
+    });
+  }
+
   /**
    * AA9: queue an owner-console intervention against a running world. All
    * console laws are checked now (draft, rollback, C3 double-confirm, and
@@ -226,10 +241,36 @@ export class World {
    * Queued events, like queued actions, are lost on restart.
    */
   submitConsoleEvent(submission: ConsoleSubmission): void {
-    this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    try {
+      this.pendingConsole.push(validateConsoleSubmission(submission, this.st.tick));
+    } catch (err) {
+      // Owner ruling 2026-11-17 (#235, 6937254884, item 3): a refused
+      // submission is still an occurrence. It is journaled as
+      // OWNER_SUBMISSION_REJECTED at the next tick boundary — reason,
+      // provenance and the submission as given — with no world effect and
+      // nothing rewritten. The operator still gets the refusal now.
+      const code = err instanceof ConsoleRejection ? err.code : "malformed_submission";
+      let given: unknown;
+      try {
+        given = JSON.parse(JSON.stringify(submission ?? null));
+      } catch {
+        given = null;
+      }
+      this.pendingRejections.push({
+        status: "rejected",
+        code,
+        reason: err instanceof Error ? err.message : String(err),
+        submittedAtTick: this.st.tick,
+        submission: given,
+      });
+      throw err;
+    }
   }
 
   private stepConsoleEvents(): void {
+    const refused = this.pendingRejections;
+    this.pendingRejections = [];
+    for (const payload of refused) this.emit("OWNER_SUBMISSION_REJECTED", "owner-console", payload);
     const due = this.pendingConsole.filter((p) => p.affectsTick === this.st.tick);
     this.pendingConsole = this.pendingConsole.filter((p) => p.affectsTick !== this.st.tick);
     for (const payload of due) this.emit("EXTERNAL_EVENT", "owner-console", payload);
@@ -254,6 +295,10 @@ export class World {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
+    for (const payload of this.pendingDriverRejections) {
+      this.emit("DRIVER_ACTION_REJECTED", "seat-driver", payload);
+    }
+    this.pendingDriverRejections = [];
     this.stepBindBackends(); // tick boundary: backend swaps land here
     this.stepEnvironment(); //                                                 2
     this.stepResources(); //                                                   3

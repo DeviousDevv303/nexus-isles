@@ -1,3 +1,4 @@
+// registry: ring-compartments-strict
 // Channel scopes (pair / ring / lineage / world) + scoped credentials.
 // Leakage tests: a message reaches exactly its scope's members; nothing
 // private reaches the journal; credentials are scoped, revocable,
