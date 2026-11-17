@@ -73,6 +73,7 @@ export class World {
   private pendingBinds = new Map<string, BackendRef>();
   private pendingConsole: Record<string, unknown>[] = [];
   private pendingRejections: Record<string, unknown>[] = [];
+  private pendingRecovery: Record<string, unknown> | null = null;
   private pendingDriverRejections: Record<string, unknown>[] = [];
 
   private constructor(
@@ -118,7 +119,14 @@ export class World {
       if (entries[i].type === "TICK_COMMIT") lastCommit = i;
     }
     if (lastCommit < 0 || entries.length - 1 !== lastCommit) {
-      throw new Error("Journal ends mid-tick (no closing TICK_COMMIT)");
+      // A crash during step 12 can leave a tick part-written: complete
+      // entries, no commit. They are complete entries, so they are never
+      // dropped automatically (ledger ruling 6938908225); the operator
+      // decides. Say exactly what is uncommitted.
+      throw new Error(
+        `Journal ends mid-tick (no closing TICK_COMMIT): entries ${lastCommit + 1}..${entries.length - 1} ` +
+          `(tick ${entries[entries.length - 1].tick}) are uncommitted. Nothing was dropped.`,
+      );
     }
     let state: WorldState | null = null;
     let from = 0;
@@ -144,7 +152,10 @@ export class World {
     path: string,
     opts: { snapshotPath?: string } = {},
   ): World {
-    const journal = Journal.loadFromFile(path);
+    // Repair: a torn final fragment is truncated away and an unterminated
+    // final entry gets its newline, so the next append starts clean. Both
+    // are reported and journaled at the next tick boundary.
+    const journal = Journal.loadFromFile(path, { repair: true });
     let snapshot: Snapshot | undefined;
     if (opts.snapshotPath && existsSync(opts.snapshotPath)) {
       try {
@@ -153,7 +164,20 @@ export class World {
         snapshot = undefined; // an unreadable cache is just a cache miss
       }
     }
-    return World.restore(journal, { persistPath: path, snapshot });
+    const world = World.restore(journal, { persistPath: path, snapshot });
+    const report = journal.loadReport;
+    if (report.tornTail || report.unterminatedFinalEntry) {
+      world.pendingRecovery = {
+        tornTail: report.tornTail,
+        unterminatedFinalEntry: report.unterminatedFinalEntry,
+      };
+    }
+    return world;
+  }
+
+  /** What the last restore repaired at the end of the journal file, if anything. */
+  get lastRecovery(): Record<string, unknown> | null {
+    return this.pendingRecovery ? { ...this.pendingRecovery } : null;
   }
 
   // ---- read side ---------------------------------------------------------
@@ -267,6 +291,13 @@ export class World {
     }
   }
 
+  /** Journal what the last restore repaired, at the first boundary after it. */
+  private stepRecovery(): void {
+    if (!this.pendingRecovery) return;
+    this.emit("JOURNAL_TAIL_RECOVERED", "engine", { ...this.pendingRecovery });
+    this.pendingRecovery = null;
+  }
+
   private stepConsoleEvents(): void {
     const refused = this.pendingRejections;
     this.pendingRejections = [];
@@ -294,6 +325,7 @@ export class World {
   tick(): void {
     const t = this.st.tick + 1;
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
+    this.stepRecovery(); // what the restore repaired, on the record
     this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
     for (const payload of this.pendingDriverRejections) {
       this.emit("DRIVER_ACTION_REJECTED", "seat-driver", payload);

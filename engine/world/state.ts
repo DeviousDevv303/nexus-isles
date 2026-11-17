@@ -438,6 +438,14 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
       deceased.instrument = null;
       return next;
     }
+    case "JOURNAL_TAIL_RECOVERED": {
+      // Audit-only: the restore discarded a torn fragment and/or terminated
+      // an unterminated final entry (ledger ruling 6938908225).
+      if (entry.tick !== state.tick || (p.tornTail === null && p.unterminatedFinalEntry !== true)) {
+        throw new Error("JOURNAL_TAIL_RECOVERED invariant violated");
+      }
+      return state;
+    }
     case "OWNER_SUBMISSION_REJECTED": {
       // A refused console submission, recorded as an occurrence. No world
       // effect. It lands at the first tick boundary after it was refused.
