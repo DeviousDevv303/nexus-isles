@@ -46,3 +46,21 @@ unclaimed estate stays where it is. The reducer accepts a succession record
 only for a resident who died that tick holding that instrument, and the
 instrument is spent on use. The only transferable asset in the placeholder
 economy is the founder's own inventory.
+
+## T8 — Núñez Royal Blood identity profile (presentation data)
+
+`nunezIdentity.ts` is the Charter-derived identity data contract consumed by
+the observer and the read-only console formatter. It names the lineage,
+describes the office bearer as “head of the Núñez Royal Blood,” defines the
+Throne as a lineage office with a mortal sitter, and records the spider swarm
+only as the family's attendant host and sigil. The Charter supplies no further
+crest detail, so none is added. The family identity is all-black tactical
+dress; the owner-character depiction is on the Throne in tactical black, an
+all-black face mask, eyes only.
+
+This profile is not a world-state binding or asset grant: it does not assign a
+resident to the Throne, create a throne asset or spider swarm, grant clothing,
+or change actions, advantages, or scores. In-world equipment must still be
+procured, built, and maintained under the standing gates. Runtime officeholder
+assignment, handover execution, and procurement/maintenance are not implemented
+by T8; the profile states only the Charter's required handover path.
