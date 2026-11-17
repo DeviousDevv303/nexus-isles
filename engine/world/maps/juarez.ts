@@ -1,5 +1,5 @@
 // Nexus Isles — Phase 1's first environment: Ciudad Juárez, the border town
-// (owner direction, #235, 2026-11-16). Tone reference: Sicario — tense,
+// (owner direction, #235 comment 6929769362). Tone reference: Sicario — tense,
 // procedural borderland. Tone has no mechanical effect.
 //
 // The places are real; the model is abstract. Regions are districts and
@@ -9,6 +9,7 @@
 // shore. Resource nodes stand in for the placeholder economy (food) until
 // the real economy lands; their placement says where scarcity is, nothing
 // more. Every number here is a Phase 1 proposal, not law.
+// PROVISIONAL — owner-ratification item (registry: map-v1).
 
 import type { MapSpec } from "../map.js";
 import type { NodeConfig, ResidentConfig, Rules, WorldConfig } from "../state.js";

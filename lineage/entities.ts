@@ -30,7 +30,7 @@
 // plus execution-time ones (expiry, estate); this derivation does not rely
 // on that and re-checks from the journal.
 //
-// PROVISIONAL readings, pending the owner (the constitution's definitions
+// PROVISIONAL readings (registry: t2-readings), pending the owner (the constitution's definitions
 // are one line each):
 //  - Dynasty: an accepted succession whose deceased AND successor are both
 //    members of the lineage (the line continued through it).

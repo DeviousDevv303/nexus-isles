@@ -1,3 +1,4 @@
+// registry: contention-v1-constants
 // AT-15 against the real AA8 formula (contention-v1): committed effort +
 // initiative + seeded tiebreak, formula ID journaled, replay reproduces
 // grants, and no seat — Nexus included — receives hidden priority.

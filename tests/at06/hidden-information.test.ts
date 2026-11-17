@@ -1,3 +1,4 @@
+// registry: map-v1
 // AT-06 Hidden information — DEMONSTRATED on the Juárez map.
 // "Unauthorized observations reveal no secrets": residents at different
 // positions / with different intel receive materially different

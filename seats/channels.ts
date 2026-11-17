@@ -5,6 +5,9 @@
 // dump, or admin-read path — the only way to read a message is to be one of
 // its recipients, presenting a credential with "channel:read".
 //
+// PROVISIONAL — owner-ratification item (registry: ring-compartments-strict):
+// compartments are strict; the top ring cannot read lower rings' traffic.
+//
 // Delivery is fixed at send time: recipients are the living members of the
 // scope at that moment. Joining a ring later does not reveal earlier
 // traffic; leaving one does not un-know what was already received. That is

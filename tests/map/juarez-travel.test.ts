@@ -1,3 +1,4 @@
+// registry: map-v1
 // The Juárez map: positions, travel, chokepoints. Bridges and the river
 // are capped crossings resolved by contention-v1's priority order.
 

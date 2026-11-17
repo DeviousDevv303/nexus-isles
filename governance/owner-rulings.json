@@ -1,0 +1,14 @@
+{
+  "$comment": "Owner rulings that code may cite as authority (RG-3). Each id is a DeviousDevv303/forgeclaw#235 comment recording the owner's own word. Adding an entry is itself an owner-authority claim: a PR that changes this file needs the owner's review. CI cannot tell who wrote a comment (every lane posts through one account); this list is the reviewed source of truth.",
+  "rulings": [
+    { "id": "6908386307", "date": "2026-11-16", "summary": "Nexus is built in as Tier 0 (resident zero)" },
+    { "id": "6928332927", "date": "2026-11-16", "summary": "Four decisions: genome tie-in, S2 path (a), checkpoint C to A, freeze in principle" },
+    { "id": "6929502691", "date": "2026-11-16", "summary": "Longevity: nothing is banned except cheating" },
+    { "id": "6929705549", "date": "2026-11-16", "summary": "Annex B weights adopted; blend rule ratified; in-environment chat box" },
+    { "id": "6929714015", "date": "2026-11-16", "summary": "World scope: the Isles mirror the real world in capability breadth" },
+    { "id": "6929769362", "date": "2026-11-16", "summary": "First environment is Juárez" },
+    { "id": "6930415128", "date": "2026-11-16", "summary": "The Throne and the spider swarm in the family" },
+    { "id": "6937184242", "date": "2026-11-16", "summary": "E6 coverage-disclosed scoring ratified; territory definition RESERVED" },
+    { "id": "6937254884", "date": "2026-11-17", "summary": "Approved: E6 option 1, territory reserved, OWNER_SUBMISSION_REJECTED, expanded AT-18 fixtures, RG-1..RG-5 as CI" }
+  ]
+}

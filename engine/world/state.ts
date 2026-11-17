@@ -12,7 +12,9 @@ import type { SuccessionInstrument } from "../../lineage/succession.js";
 import { validateMap, type MapSpec } from "./map.js";
 import { CONTENTION_FORMULA_ID, KNOWN_FORMULAS } from "./contention.js";
 
+// PROVISIONAL — owner-ratification item (registry: contention-v1-constants).
 export const DEFAULT_MAX_EFFORT = 3;
+// PROVISIONAL — owner-ratification item (registry: map-v1).
 /** Map worlds: default observation radius in hops. A Phase 1 proposal. */
 export const DEFAULT_INTEL = 1;
 /** Map worlds: the highest intel any resident may have. */
@@ -136,6 +138,7 @@ export interface WorldState {
   nextInstrumentSeq: number;
 }
 
+// PROVISIONAL — owner-ratification item (registry: reproduction-v0).
 export const DEFAULT_REPRODUCTION_COST = 4;
 export const lineageIdFor = (founderId: string): string => `lineage:${founderId}`;
 

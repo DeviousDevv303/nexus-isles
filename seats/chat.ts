@@ -7,7 +7,8 @@
 // both use exactly these calls with credentials.
 //
 // Hard rules, enforced here:
-//  - Own AI only. A principal is enrolled to exactly one seat, and a seat
+//  - Own AI only (PROVISIONAL, registry: seat-identity-v1). A principal is
+//    enrolled to exactly one seat, and a seat
 //    has exactly one principal. Every call resolves the target seat from the
 //    caller's credential; no call takes a seat id. A "chat" credential that
 //    was not issued by enrol() is refused.
@@ -20,7 +21,7 @@
 //    records the action (with backend and credential), never the chat.
 //  - Death closes the seat: a dead resident's AI receives nothing new.
 //
-// PROVISIONAL — owner-ratification item (BR-1): enrolments, messages, and
+// PROVISIONAL — owner-ratification item (BR-1; registry: chat-restart-loss): enrolments, messages, and
 // approaches live in memory only and are lost on restart. Durable private
 // memory that survives restart while staying invisible to the journal and
 // inside AA7's scrub boundary is an open architectural item; this

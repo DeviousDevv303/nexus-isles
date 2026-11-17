@@ -1,3 +1,4 @@
+// registry: reproduction-v0 · registry: t2-readings
 // AA12 five-entity model + the blend rule, end to end through the world
 // core: action -> validator -> journal -> derived entities.
 
