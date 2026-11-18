@@ -7,6 +7,7 @@
 
 import type { BackendRef } from "../engine/world/state.js";
 import type { World } from "../engine/world/world.js";
+import { checkTickDelivery } from "../engine/world/writerLock.js";
 import type { Action, Observation } from "./seatProvider.js";
 
 export interface DriverDirective {
@@ -96,6 +97,14 @@ function parseActions(value: unknown): Action[] {
 export class SeatDriver {
   private readonly closed = new Set<string>();
   private readonly seats = new Map<string, DrivenSeat>();
+  /** Single flight: a second delivery while one is running is refused. */
+  private inFlight = false;
+  /**
+   * The tick whose proposals are already submitted but whose world tick has
+   * not committed (it threw, e.g. on an emergency stop). A redelivery of that
+   * same tick re-runs only the world tick; it never submits the seats twice.
+   */
+  private submittedFor: number | null = null;
 
   constructor(private readonly world: World, drivenSeats: readonly DrivenSeat[]) {
     for (const seat of drivenSeats) {
@@ -110,12 +119,31 @@ export class SeatDriver {
     }
   }
 
-  async tick(): Promise<DriverTickReport> {
+  /**
+   * One driver tick. With `expectTick`, the delivery names its tick: a
+   * repeated delivery of a committed tick is refused before any backend is
+   * asked or anything is submitted (TickDeliveryError).
+   */
+  async tick(opts: { expectTick?: number } = {}): Promise<DriverTickReport> {
+    if (this.inFlight) throw new Error("a driver tick is already in flight: a concurrent delivery never ticks twice");
+    const next = this.world.tickNumber + 1;
+    checkTickDelivery(opts.expectTick, next);
+    this.inFlight = true;
+    try {
+      return await this.tickOnce(next, opts.expectTick);
+    } finally {
+      this.inFlight = false;
+    }
+  }
+
+  private async tickOnce(next: number, expectTick: number | undefined): Promise<DriverTickReport> {
     let submitted = 0;
     let refused = 0;
     const closedSeats: string[] = [];
 
+    const alreadySubmitted = this.submittedFor === next;
     for (const [seatId, seat] of [...this.seats.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      if (alreadySubmitted) break;
       if (this.closed.has(seatId)) continue;
       const resident = this.world.state.residents[seatId];
       if (!resident?.alive) {
@@ -149,7 +177,9 @@ export class SeatDriver {
       }
     }
 
-    this.world.tick();
+    this.submittedFor = next;
+    this.world.tick({ expectTick });
+    this.submittedFor = null;
     for (const [seatId] of this.seats) {
       if (!this.world.state.residents[seatId]?.alive && !this.closed.has(seatId)) {
         this.closed.add(seatId);
