@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { Journal } from "../../ledger/journal.js";
 import { World } from "../../engine/world/world.js";
+import { TickDeliveryError } from "../../engine/world/writerLock.js";
 import { parseGenesisConfig, type GenesisConfig } from "../../runner/config.js";
 import { LaunchRunner } from "../../runner/runner.js";
 import { tempDir } from "../helpers/worldFixtures.js";
@@ -253,5 +254,46 @@ describe("launch runner — world class (the PR #32 guard on the launcher)", () 
         ],
       }),
     ).toThrow(/worldClass must be one of scratch, persistent/);
+  });
+});
+
+describe("launch runner — tick delivery identity (the PR #35 wiring on the launcher)", () => {
+  it("(l) a sequential redelivery of a runner tick is refused — exactly one commit per tick", async () => {
+    const dir = tempDir();
+    const c = collector();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(), log: c.log });
+    await r.start();
+    // start() delivered the priming engine tick under its identity (tick 1).
+    expect(r.currentTick).toBe(1);
+    const commits = () =>
+      Journal.loadFromFile(join(dir, "journal.jsonl"))
+        .entries()
+        .filter((e) => e.type === "TICK_COMMIT")
+        .map((e) => e.tick);
+
+    // A delivery through the runner, named with its tick identity.
+    await r.tickOnce({ expectTick: 2 });
+    expect(r.currentTick).toBe(2);
+    const headAfterTick2 = r.currentHead;
+
+    // The same delivery arrives again (a supervisor retry, a doubled
+    // timer): refused with the PR #35 shape, before anything is written —
+    // the head, the tick and the commit list do not move.
+    await expect(r.tickOnce({ expectTick: 2 })).rejects.toThrow(TickDeliveryError);
+    await expect(r.tickOnce({ expectTick: 2 })).rejects.toThrow(/already committed/);
+    // A delivery that skips ahead is refused the same way.
+    await expect(r.tickOnce({ expectTick: 9 })).rejects.toThrow(/not the next tick/);
+    expect(r.currentTick).toBe(2);
+    expect(r.currentHead).toBe(headAfterTick2);
+    expect(commits()).toEqual([0, 1, 2]);
+
+    // The runner's own unnamed sequence is unaffected and continues.
+    await r.tickOnce();
+    expect(r.currentTick).toBe(3);
+    expect(commits()).toEqual([0, 1, 2, 3]);
+    await r.stop();
+
+    const journal = Journal.loadFromFile(join(dir, "journal.jsonl"));
+    expect(journal.verify().ok).toBe(true);
   });
 });

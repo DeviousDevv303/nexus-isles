@@ -6,6 +6,10 @@
 // persistence and shutdown all go through World / SeatDriver / Journal as
 // they already exist (including the PR #22/#23 durability machinery: the
 // journal's per-tick fsync'd append and the console WAL inside World).
+// Every tick the runner delivers is NAMED with the PR #35 delivery identity
+// (expectTick = the world tick it will commit): the priming engine tick and
+// each driver tick alike, so a redelivered tick command is refused by the
+// world/driver check instead of ticking the same slot twice.
 //
 // Data directory layout:
 //   journal.jsonl   the world journal (authoritative; .wal beside it)
@@ -133,13 +137,20 @@ export class LaunchRunner {
     }
   }
 
-  /** One driver tick (plus snapshot + log line). Safe to call from tests. */
-  async tickOnce(): Promise<void> {
+  /**
+   * One driver tick (plus snapshot + log line). Safe to call from tests.
+   * The delivery is named with its PR #35 identity: by default the runner's
+   * own next tick (world tickNumber + 1). A caller redelivering a tick
+   * passes the identity it originally delivered in `expectTick`; if that
+   * tick is already committed the driver refuses it (TickDeliveryError)
+   * before any backend is asked or anything is written.
+   */
+  async tickOnce(opts: { expectTick?: number } = {}): Promise<void> {
     if (!this.world || !this.driver) throw new Error("runner not started");
     if (this.ticking) throw new Error("a tick is already in flight");
     this.ticking = true;
     try {
-      const report = await this.driver.tick();
+      const report = await this.driver.tick({ expectTick: opts.expectTick ?? this.world.tickNumber + 1 });
       this.world.writeSnapshot(this.snapshotPath);
       this.logLine(
         `TICK tick=${report.tick} head=${this.world.headHash} submitted=${report.submitted} ` +
@@ -264,7 +275,9 @@ export class LaunchRunner {
       // Prime: one engine tick delivers the first observations, so the
       // first driver tick asks backends about a real observation instead of
       // journaling a no_observation refusal (the AT-22 harness pattern).
-      world.tick();
+      // The prime is a delivery like any other: named with its identity
+      // (the world tick it commits, 1 on a fresh genesis).
+      world.tick({ expectTick: world.tickNumber + 1 });
       world.writeSnapshot(this.snapshotPath);
       this.logLine(`TICK tick=${world.tickNumber} head=${world.headHash} submitted=0 refused=0 closed=- prime=1`);
     }
