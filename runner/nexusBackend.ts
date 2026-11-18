@@ -31,7 +31,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RawOutputBackend, parseBackendActions, type DriverDirective, type SeatBackend } from "../seats/driver.js";
-import type { Action, Observation } from "../seats/seatProvider.js";
+import type { Action, ActionProvenance, Observation } from "../seats/seatProvider.js";
+import { createHash } from "node:crypto";
 
 /** The seated checkpoint this adapter serves. sha256 c41852fb0ac11f47… */
 export const NEXUS_RUN25_CHECKPOINT_SHA256 =
@@ -99,6 +100,22 @@ export function buildNexusPrompt(input: {
   }
   lines.push("Your actions, as a JSON array:");
   return lines.join("\n");
+}
+
+function nexusPromptProvenance(input: {
+  observation: Observation;
+  directives: readonly DriverDirective[];
+}): ActionProvenance {
+  return {
+    promptHash: createHash("sha256")
+      .update(buildNexusPrompt(input), "utf8")
+      .digest("hex"),
+    inputReferences: [
+      `observation:tick:${input.observation.tick}`,
+      "observation:visible",
+      ...input.directives.map((d) => `directive:tick:${d.tick}:${d.kind}`),
+    ],
+  };
 }
 
 /**
@@ -307,5 +324,6 @@ export function createNexusLocalBackend(options: NexusBackendOptions = {}): Seat
       });
     },
     (raw) => parseNexusRawActions(raw),
+    nexusPromptProvenance,
   );
 }

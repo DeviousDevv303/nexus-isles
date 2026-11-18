@@ -8,7 +8,9 @@
 import type { BackendRef } from "../engine/world/state.js";
 import type { World } from "../engine/world/world.js";
 import { checkTickDelivery } from "../engine/world/writerLock.js";
-import type { Action, Observation } from "./seatProvider.js";
+import { createHash } from "node:crypto";
+import { canonicalStringify } from "../ledger/journal.js";
+import type { Action, ActionProvenance, Observation } from "./seatProvider.js";
 
 export interface DriverDirective {
   tick: number;
@@ -22,6 +24,27 @@ export interface SeatBackend {
     observation: Observation;
     directives: readonly DriverDirective[];
   }): unknown | Promise<unknown>;
+  /** Derive journal-safe provenance for the exact private input sent to propose. */
+  provenance?(input: {
+    observation: Observation;
+    directives: readonly DriverDirective[];
+  }): ActionProvenance;
+}
+
+function fallbackProvenance(input: {
+  observation: Observation;
+  directives: readonly DriverDirective[];
+}): ActionProvenance {
+  return {
+    promptHash: createHash("sha256")
+      .update(canonicalStringify(input), "utf8")
+      .digest("hex"),
+    inputReferences: [
+      `observation:tick:${input.observation.tick}`,
+      "observation:visible",
+      ...input.directives.map((d) => `directive:tick:${d.tick}:${d.kind}`),
+    ],
+  };
 }
 
 /** Deterministic TEST DOUBLE. Never label this provider as Nexus or a model. */
@@ -54,7 +77,18 @@ export class RawOutputBackend implements SeatBackend {
       directives: readonly DriverDirective[];
     }) => unknown | Promise<unknown>,
     private readonly parse: (raw: unknown) => unknown,
+    private readonly makeProvenance?: (input: {
+      observation: Observation;
+      directives: readonly DriverDirective[];
+    }) => ActionProvenance,
   ) {}
+
+  provenance(input: {
+    observation: Observation;
+    directives: readonly DriverDirective[];
+  }): ActionProvenance {
+    return this.makeProvenance?.(input) ?? fallbackProvenance(input);
+  }
 
   async propose(input: {
     observation: Observation;
@@ -163,9 +197,11 @@ export class SeatDriver {
         body: directive.body,
       }));
       try {
-        const raw = await seat.backend.propose({ observation, directives });
+        const input = { observation, directives };
+        const provenance = seat.backend.provenance?.(input) ?? fallbackProvenance(input);
+        const raw = await seat.backend.propose(input);
         for (const action of parseActions(raw)) {
-          this.world.submit(seatId, action);
+          this.world.submit(seatId, action, { provenance });
           submitted += 1;
         }
       } catch (error) {

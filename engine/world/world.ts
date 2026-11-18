@@ -16,7 +16,7 @@
 
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { Journal, type JournalEntry } from "../../ledger/journal.js";
-import type { Action, Observation } from "../../seats/seatProvider.js";
+import type { Action, ActionProvenance, Observation } from "../../seats/seatProvider.js";
 import { resolveContention, type Claim, type ClaimOutcome } from "./contention.js";
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
@@ -46,10 +46,12 @@ interface Received {
   seq: number;
   action: Action;
   credentialId: string | null;
+  provenance: ActionProvenance | null;
 }
 interface Queued {
   action: Action;
   credentialId: string | null;
+  provenance: ActionProvenance | null;
 }
 interface NodeResolution {
   node: string;
@@ -291,14 +293,27 @@ export class World {
    * why) lands in the journal at that tick. Queued-but-unticked actions are
    * not history and do not survive a restart.
    */
-  submit(seatId: string, action: Action, attribution?: { credentialId: string }): void {
+  submit(
+    seatId: string,
+    action: Action,
+    attribution?: { credentialId?: string; provenance?: ActionProvenance },
+  ): void {
     // Normalise through JSON so what is validated and journaled is exactly
     // what survives a save/load round-trip (no undefined/NaN/function edge).
     const normalised = JSON.parse(
       JSON.stringify({ verb: action.verb, args: action.args ?? {} }),
     ) as Action;
     const list = this.pending.get(seatId) ?? [];
-    list.push({ action: normalised, credentialId: attribution?.credentialId ?? null });
+    list.push({
+      action: normalised,
+      credentialId: attribution?.credentialId ?? null,
+      provenance: attribution?.provenance
+        ? {
+            promptHash: attribution.provenance.promptHash,
+            inputReferences: [...attribution.provenance.inputReferences],
+          }
+        : null,
+    });
     this.pending.set(seatId, list);
   }
 
@@ -572,7 +587,13 @@ export class World {
     const out: Received[] = [];
     for (const seatId of [...this.pending.keys()].sort()) {
       (this.pending.get(seatId) ?? []).forEach((q, seq) =>
-        out.push({ seatId, seq, action: q.action, credentialId: q.credentialId }),
+        out.push({
+          seatId,
+          seq,
+          action: q.action,
+          credentialId: q.credentialId,
+          provenance: q.provenance,
+        }),
       );
     }
     this.pending = new Map();
@@ -589,7 +610,16 @@ export class World {
       );
       // AT-20: every action record carries the backend that produced it.
       const backend = this.st.residents[r.seatId]?.backend ?? null;
-      const body = { seat: r.seatId, seq: r.seq, verb: r.action.verb, args: r.action.args, backend, credential: r.credentialId };
+      const body = {
+        seat: r.seatId,
+        seq: r.seq,
+        verb: r.action.verb,
+        args: r.action.args,
+        backend,
+        credential: r.credentialId,
+        promptHash: r.provenance?.promptHash ?? null,
+        inputReferences: r.provenance?.inputReferences ?? [],
+      };
       if (res.ok) {
         if (r.action.verb === "gather" || r.action.verb === "move") {
           committed.set(r.seatId, (committed.get(r.seatId) ?? 0) + effortOf(r.action) - 1);
