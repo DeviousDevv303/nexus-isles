@@ -24,6 +24,7 @@
     "residents/**/*.ts",
     "tests/**/*.ts",
     "tools/**/*.ts",
-    "runner/**/*.ts"
+    "runner/**/*.ts",
+    "viewer/**/*.ts"
   ]
 }
