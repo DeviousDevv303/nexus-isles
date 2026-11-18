@@ -16,10 +16,14 @@ import { parseGenesisConfig, type GenesisConfig } from "../../runner/config.js";
 import { LaunchRunner } from "../../runner/runner.js";
 import { tempDir } from "../helpers/worldFixtures.js";
 
-function genesis(seed = 777): GenesisConfig {
+function genesis(seed = 777, worldClass: string | null = "scratch"): GenesisConfig {
   return parseGenesisConfig({
     seed,
     map: "juarez",
+    // These seats are labeled test doubles, so the config must declare the
+    // scratch class explicitly — an omitted class defaults fail-closed to
+    // persistent, which refuses test doubles (see the world-class tests).
+    ...(worldClass ? { worldClass } : {}),
     seats: [
       {
         seatId: "nexus",
@@ -154,5 +158,100 @@ describe("launch runner", () => {
     await right.start();
     expect(right.startMode).toBe("resumed");
     await right.stop();
+  });
+});
+
+describe("launch runner — world class (the PR #32 guard on the launcher)", () => {
+  it("(f) a scratch genesis seats the test doubles and journals the class", async () => {
+    const dir = tempDir();
+    const c = collector();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "scratch"), log: c.log });
+    await r.start();
+    expect(r.startMode).toBe("genesis");
+    expect(c.lines.some((l) => l === "RUNNER world-class config=scratch effective=scratch")).toBe(true);
+    expect(
+      c.lines.some((l) => l.startsWith("RUNNER start mode=genesis") && l.includes("worldClass=scratch")),
+    ).toBe(true);
+    await r.tickOnce();
+    await r.stop();
+
+    const journal = Journal.loadFromFile(join(dir, "journal.jsonl"));
+    const genesisEntry = journal.entries()[0];
+    expect(genesisEntry.type).toBe("WORLD_GENESIS");
+    expect((genesisEntry.payload.config as { worldClass?: string }).worldClass).toBe("scratch");
+  });
+
+  it("(g) a persistent genesis refuses the test doubles", async () => {
+    const dir = tempDir();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "persistent"), log: () => {} });
+    await expect(r.start()).rejects.toThrow(/cannot seat a test double/);
+    // The refusal happened at genesis validation: no journal was created.
+    expect(existsSync(join(dir, "journal.jsonl"))).toBe(false);
+  });
+
+  it("(h) an omitted worldClass defaults fail-closed to persistent — and the log says so", async () => {
+    const dir = tempDir();
+    const c = collector();
+    const r = new LaunchRunner({ dataDir: dir, genesis: genesis(777, null), log: c.log });
+    // Same refusal as the declared-persistent case: test doubles never run
+    // under an undeclared class.
+    await expect(r.start()).rejects.toThrow(/cannot seat a test double/);
+    expect(c.lines.some((l) => l === "RUNNER world-class config=omitted effective=persistent")).toBe(true);
+    expect(existsSync(join(dir, "journal.jsonl"))).toBe(false);
+  });
+
+  it("(i) resume with a mismatched worldClass is refused", async () => {
+    const dir = tempDir();
+    const r1 = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "scratch"), log: () => {} });
+    await r1.start();
+    await r1.stop();
+
+    // Declared persistent against a scratch journal: refused by the
+    // engine's expectWorldClass check before any load or repair.
+    const declared = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "persistent"), log: () => {} });
+    await expect(declared.start()).rejects.toThrow(/refusing to open a scratch journal as persistent/);
+
+    // Omitted class (fail-closed persistent) against the same scratch
+    // journal: refused the same way — silence never reclasses a world.
+    const omitted = new LaunchRunner({ dataDir: dir, genesis: genesis(777, null), log: () => {} });
+    await expect(omitted.start()).rejects.toThrow(/refusing to open a scratch journal as persistent/);
+  });
+
+  it("(j) resume with the matching worldClass works", async () => {
+    const dir = tempDir();
+    const r1 = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "scratch"), log: () => {} });
+    await r1.start();
+    await r1.tickOnce();
+    const headBefore = r1.currentHead;
+    await r1.stop();
+
+    const c2 = collector();
+    const r2 = new LaunchRunner({ dataDir: dir, genesis: genesis(777, "scratch"), log: c2.log });
+    await r2.start();
+    expect(r2.startMode).toBe("resumed");
+    expect(r2.currentHead).toBe(headBefore);
+    expect(
+      c2.lines.some((l) => l.startsWith("RUNNER start mode=resumed") && l.includes("worldClass=scratch")),
+    ).toBe(true);
+    await r2.tickOnce();
+    expect(r2.currentHead).not.toBe(headBefore);
+    await r2.stop();
+  });
+
+  it("(k) an unknown worldClass in the config is refused at parse", () => {
+    expect(() =>
+      parseGenesisConfig({
+        seed: 1,
+        map: "juarez",
+        worldClass: "demo",
+        seats: [
+          {
+            seatId: "nexus",
+            backend: { providerId: "test-double:scripted-policy", version: "test-v1" },
+            position: "centro",
+          },
+        ],
+      }),
+    ).toThrow(/worldClass must be one of scratch, persistent/);
   });
 });
