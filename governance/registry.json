@@ -219,6 +219,27 @@
       "status": "RESERVED",
       "why": "Owner ruling 6937184242: no lane invents or implements a territorial-control definition until the owner ratifies one",
       "tripwire": "\\b(computeControl|CONTROL_CHANGED|territoryControl|controlledRegions?|controlRule)\\b"
+    },
+    {
+      "id": "world-class-v1",
+      "status": "PROVISIONAL",
+      "why": "Demo/persistent separation (#235 6954063385, lane-adopted spec): the two world classes and the labeled test-double prefix are build choices, not ruled text",
+      "symbols": [
+        {
+          "file": "engine/world/state.ts",
+          "name": "WORLD_CLASSES"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "TEST_DOUBLE_PREFIX"
+        }
+      ],
+      "markers": [
+        "engine/world/state.ts"
+      ],
+      "tests": [
+        "tests/at02/world-class.test.ts"
+      ]
     }
   ]
 }
