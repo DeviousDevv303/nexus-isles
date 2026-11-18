@@ -42,9 +42,11 @@ function setup(delayMs = 0) {
   const path = join(tempDir(), "journal.jsonl");
   const world = World.create(
     91,
-    juarezConfig(
+    // Declared scratch: this suite seats a labeled test double, which only a
+    // declared scratch world may seat (world-class-v1).
+    { ...juarezConfig(
       SEAT_IDS.map((id) => ({ id, satiety: 9, maxSatiety: 10, actionsPerTick: 2, position: "centro", intel: 1, backend: REF })),
-    ),
+    ), worldClass: "scratch" as const },
     { persistPath: path },
   );
   world.tick({ expectTick: 1 }); // first observation delivered through the journal

@@ -143,6 +143,24 @@ export function clearStopFile(journalPath: string): void {
 }
 
 /**
+ * A journal opened as the wrong world class. Thrown before the journal is
+ * loaded or repaired, so a scratch history is never advanced as persistent
+ * and a persistent one never as scratch.
+ */
+export class WorldClassError extends Error {
+  constructor(
+    readonly expected: string,
+    readonly actual: string,
+  ) {
+    super(
+      `refusing to open a ${actual} journal as ${expected}: scratch and persistent histories never mix ` +
+        `(the class is fixed in WORLD_GENESIS)`,
+    );
+    this.name = "WorldClassError";
+  }
+}
+
+/**
  * A tick delivery that does not name the next tick. Thrown before anything
  * is written: a repeated delivery of a committed tick never ticks twice, and
  * a delivery from the future never skips one.
