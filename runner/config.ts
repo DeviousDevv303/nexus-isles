@@ -1,15 +1,22 @@
 // Nexus Isles — launch runner: genesis + runner configuration.
 //
 // The genesis config is the ONLY place a new world's shape is declared for
-// the runner: seed, map (Juarez — the one Phase 1 environment), and the seat
-// list with the backend identity (providerId + version) that will act
-// through each seat. On a resume the journal is authoritative for the
-// world's shape; the config, when supplied, is cross-checked against it
-// (seed + seat roster) so a runner can never silently drive the wrong world.
+// the runner: seed, map (Juarez — the one Phase 1 environment), the world
+// class (scratch | persistent), and the seat list with the backend identity
+// (providerId + version) that will act through each seat. On a resume the
+// journal is authoritative for the world's shape; the config, when
+// supplied, is cross-checked against it (seed + seat roster + world class)
+// so a runner can never silently drive the wrong world.
 
 import { readFileSync } from "node:fs";
 import { JUAREZ_MAP_ID, juarezConfig } from "../engine/world/maps/juarez.js";
-import { WORLD_CLASSES, type BackendRef, type ResidentConfig, type WorldClass, type WorldConfig } from "../engine/world/state.js";
+import {
+  WORLD_CLASSES,
+  type BackendRef,
+  type ResidentConfig,
+  type WorldClass,
+  type WorldConfig,
+} from "../engine/world/state.js";
 
 export interface RunnerSeatSpec {
   seatId: string;
@@ -28,13 +35,27 @@ export interface GenesisConfig {
   /** "juarez" (or the map id "juarez-v1"). The only map the runner ships. */
   map: string;
   /**
-   * World class carried into WORLD_GENESIS (world-class-v1). Absent =
-   * unclassified, which the engine treats as persistent — so a genesis
-   * seating a test-double backend must declare "scratch" or the engine
-   * refuses it at creation.
+   * The world class declared for this world (world-class-v1, PR #32):
+   * "scratch" for disposable worlds that may seat labeled test doubles,
+   * "persistent" for real history. Absent = undeclared in the config; the
+   * runner resolves that fail-closed to "persistent" (see
+   * effectiveWorldClass) and says so in its log — it never silently picks.
    */
   worldClass?: WorldClass;
   seats: RunnerSeatSpec[];
+}
+
+/** The class an undeclared config is treated as: fail-closed toward real. */
+export const FAIL_CLOSED_WORLD_CLASS: WorldClass = "persistent";
+
+/**
+ * The world class the runner acts on for a genesis config: the declared
+ * class, or — when the config omits the field — "persistent". An omitted
+ * class therefore never yields a scratch world, and a config that seats
+ * test doubles must declare "scratch" explicitly.
+ */
+export function effectiveWorldClass(genesis: GenesisConfig): WorldClass {
+  return genesis.worldClass ?? FAIL_CLOSED_WORLD_CLASS;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -95,9 +116,6 @@ export function parseGenesisConfig(raw: unknown): GenesisConfig {
   if (map !== "juarez" && map !== JUAREZ_MAP_ID) {
     throw new Error(`genesis config: unsupported map ${JSON.stringify(map)} — the runner ships the Juarez map only`);
   }
-  if (raw.worldClass !== undefined && !(WORLD_CLASSES as readonly unknown[]).includes(raw.worldClass)) {
-    throw new Error(`genesis config: worldClass must be one of ${WORLD_CLASSES.join(", ")}`);
-  }
   if (!Array.isArray(raw.seats) || raw.seats.length === 0) {
     throw new Error("genesis config: seats must be a non-empty array");
   }
@@ -107,12 +125,14 @@ export function parseGenesisConfig(raw: unknown): GenesisConfig {
     if (seen.has(s.seatId)) throw new Error(`genesis config: duplicate seat ${s.seatId}`);
     seen.add(s.seatId);
   }
-  return {
-    seed: raw.seed as number,
-    map: map as string,
-    ...(raw.worldClass !== undefined ? { worldClass: raw.worldClass as WorldClass } : {}),
-    seats,
-  };
+  let worldClass: WorldClass | undefined;
+  if (raw.worldClass !== undefined) {
+    if (typeof raw.worldClass !== "string" || !(WORLD_CLASSES as readonly string[]).includes(raw.worldClass)) {
+      throw new Error(`genesis config: worldClass must be one of ${WORLD_CLASSES.join(", ")}`);
+    }
+    worldClass = raw.worldClass as WorldClass;
+  }
+  return { seed: raw.seed as number, map: map as string, ...(worldClass ? { worldClass } : {}), seats };
 }
 
 export function loadGenesisConfig(path: string): GenesisConfig {
@@ -125,7 +145,12 @@ export function loadGenesisConfig(path: string): GenesisConfig {
   return parseGenesisConfig(parsed);
 }
 
-/** The engine WorldConfig for a genesis: the Juarez map + its nodes/rules. */
+/**
+ * The engine WorldConfig for a genesis: the Juarez map + its nodes/rules +
+ * the effective world class, journaled in WORLD_GENESIS by World.create.
+ * The class is always present here (declared, or the fail-closed default),
+ * so a runner-created world is never left "unclassified" by silence.
+ */
 export function worldConfigFor(genesis: GenesisConfig): WorldConfig {
   const residents: ResidentConfig[] = genesis.seats.map((s) => ({
     id: s.seatId,
@@ -136,7 +161,5 @@ export function worldConfigFor(genesis: GenesisConfig): WorldConfig {
     intel: s.intel,
     backend: s.backend,
   }));
-  // The declared class (if any) is carried into the engine config — and so
-  // into WORLD_GENESIS. Undeclared stays undeclared: no class is injected.
-  return { ...juarezConfig(residents), ...(genesis.worldClass ? { worldClass: genesis.worldClass } : {}) };
+  return { ...juarezConfig(residents), worldClass: effectiveWorldClass(genesis) };
 }
