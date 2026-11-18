@@ -35,6 +35,16 @@ export interface Action {
   args: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Ruling 9 action provenance. The journal stores only a digest of the private
+ * backend input and stable labels for the inputs used; it never stores a raw
+ * prompt, directive body, or deliberation.
+ */
+export interface ActionProvenance {
+  promptHash: string;
+  inputReferences: readonly string[];
+}
+
 export interface Receipt {
   accepted: boolean;
   /** Journal index of the resolved action, when accepted. */

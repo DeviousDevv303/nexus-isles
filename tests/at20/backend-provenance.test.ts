@@ -8,6 +8,7 @@ import { NexusEmbeddedSeat } from "../../residents/nexus/embeddedSeat.js";
 import type { SeatSpec } from "../../seats/seatProvider.js";
 import { World } from "../../engine/world/world.js";
 import { TEST_BACKEND, baseConfig, drive, rebuildJournal } from "../helpers/worldFixtures.js";
+import { RawOutputBackend, SeatDriver } from "../../seats/driver.js";
 
 const V1 = { providerId: "hosted-strongest", version: "2026-11-a" };
 const V2 = { providerId: "nexus-intelligence", version: "run32" };
@@ -34,6 +35,27 @@ describe("AT-20 backend provenance", () => {
     expect(all.length).toBeGreaterThan(100);
     expect(all.some((e) => e.type === "ACTION_REJECTED")).toBe(true);
     for (const e of all) expect(e.payload.backend).toEqual(TEST_BACKEND);
+  });
+
+  it("records only a prompt hash and stable input references, never private input text", async () => {
+    const privateCanary = "PRIVATE_PROMPT_CANARY_MUST_NOT_REACH_JOURNAL";
+    const w = World.create(5, baseConfig());
+    const driver = new SeatDriver(w, [{
+      seatId: "alpha",
+      directives: () => [{ tick: w.tickNumber, kind: "private", body: privateCanary }],
+      backend: new RawOutputBackend(
+        TEST_BACKEND,
+        () => JSON.stringify([{ verb: "gather", args: { node: "grove", amount: 1 } }]),
+        (raw) => JSON.parse(raw as string),
+      ),
+    }]);
+    w.tick();
+    await driver.tick();
+    const action = w.entries().find((e) => e.type === "ACTION_ACCEPTED");
+    expect(action?.payload.promptHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(action?.payload.inputReferences).toEqual(["observation:tick:1", "observation:visible", "directive:tick:1:private"]);
+    const journalText = w.entries().map((e) => JSON.stringify(e)).join("\n");
+    expect(journalText).not.toContain(privateCanary);
   });
 
   it("actions on both sides of a swap carry their correct versions", () => {
