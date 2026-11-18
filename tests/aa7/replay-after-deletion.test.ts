@@ -67,17 +67,22 @@ describe("AA7 replay after deliberation deletion", () => {
 
       const world = World.create(
         77,
-        juarezConfig([
-          {
-            id: "nexus",
-            satiety: 9,
-            maxSatiety: 10,
-            actionsPerTick: 2,
-            position: "centro",
-            intel: 1,
-            backend: BACKEND,
-          },
-        ]),
+        // Declared scratch: the seat is driven by a labeled test double,
+        // which only a declared scratch world may seat (world-class-v1).
+        {
+          ...juarezConfig([
+            {
+              id: "nexus",
+              satiety: 9,
+              maxSatiety: 10,
+              actionsPerTick: 2,
+              position: "centro",
+              intel: 1,
+              backend: BACKEND,
+            },
+          ]),
+          worldClass: "scratch",
+        },
         { persistPath: journalPath },
       );
 

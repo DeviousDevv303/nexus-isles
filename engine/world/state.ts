@@ -90,7 +90,26 @@ export interface Rules {
 }
 /** Rules as journaled in WORLD_GENESIS: every AA8 field explicit. */
 export type JournaledRules = Required<Rules>;
+/**
+ * Demo/persistent separation (#235 6954063385). Carried in WORLD_GENESIS only,
+ * never in WorldState, so worlds that declare no class keep byte-identical
+ * genesis records and state hashes. A journal without a class is
+ * "unclassified" (it predates the field) and is treated as history.
+ * PROVISIONAL (world-class-v1): the class names and the test-double prefix
+ * are build choices from the lane-adopted spec, not ruled text.
+ */
+export type WorldClass = "scratch" | "persistent";
+export const WORLD_CLASSES: readonly WorldClass[] = ["scratch", "persistent"];
+
+/** Labeled test doubles: their providerId starts with this prefix. */
+export const TEST_DOUBLE_PREFIX = "test-double:";
+export function isTestDouble(ref: BackendRef): boolean {
+  return ref.providerId.startsWith(TEST_DOUBLE_PREFIX);
+}
+
 export interface WorldConfig {
+  /** scratch | persistent; absent = unclassified. */
+  worldClass?: WorldClass;
   /** Optional map. Without one the world has no positions and a uniform view. */
   map?: MapSpec;
   nodes: NodeConfig[];
@@ -169,6 +188,19 @@ function nonNeg(p: Payload, k: string): number {
 }
 
 export function validateConfig(config: WorldConfig): void {
+  if (config.worldClass !== undefined && !WORLD_CLASSES.includes(config.worldClass)) {
+    throw new Error(`worldClass must be one of ${WORLD_CLASSES.join(", ")}`);
+  }
+  // Fail-closed: only a world DECLARED scratch may seat a test double. An
+  // undeclared class is treated as persistent (Kimi's spec: undeclared =
+  // persistent), so the ban covers persistent and unclassified worlds alike.
+  if (config.worldClass !== "scratch") {
+    for (const r of config.residents) {
+      if (r.backend && isTestDouble(r.backend)) {
+        throw new Error(`resident ${r.id}: a world of class ${config.worldClass ?? "unclassified"} cannot seat a test double (${r.backend.providerId}); test doubles run in scratch worlds only`);
+      }
+    }
+  }
   const regionIds = new Set<string>();
   if (config.map) {
     validateMap(config.map);

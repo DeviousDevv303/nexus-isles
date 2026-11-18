@@ -9,7 +9,9 @@ import { juarezConfig } from "../../engine/world/maps/juarez.js";
 import { RawOutputBackend, ScriptedPolicyBackend, SeatDriver, parseBackendActions } from "../../seats/driver.js";
 
 function makeConfig(satiety = 8) {
-  return juarezConfig([
+  // Declared scratch: this suite drives seats with a labeled test double,
+  // which only a declared scratch world may seat (world-class-v1).
+  return { ...juarezConfig([
     {
       id: "nexus",
       satiety,
@@ -28,7 +30,7 @@ function makeConfig(satiety = 8) {
       intel: 1,
       backend: { providerId: "test-double:scripted-policy", version: "test-v1" },
     },
-  ]);
+  ]), worldClass: "scratch" as const };
 }
 
 function rebuild(world: World): Journal {

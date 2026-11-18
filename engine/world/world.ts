@@ -21,17 +21,19 @@ import { resolveContention, type Claim, type ClaimOutcome } from "./contention.j
 import { mutateBlend, mutateFork } from "../../lineage/mutation.js";
 import { edgeKey, findEdge, regionsWithin } from "./map.js";
 import { priorityOrder } from "./contention.js";
-import { WorldStoppedError, WriterLock, clearStopFile, readStop, writeStop } from "./writerLock.js";
+import { WorldClassError, WorldStoppedError, WriterLock, clearStopFile, readStop, writeStop } from "./writerLock.js";
 import { appendWal, readWal, rewriteWal, walPathFor, type WalRecord } from "./wal.js";
 import { rngFor } from "./rng.js";
 import {
   hashState,
   isBackendRef,
+  isTestDouble,
   lineageIdFor,
   normalizeConfig,
   reduce,
   validateConfig,
   type BackendRef,
+  type WorldClass,
   type WorldConfig,
   type WorldState,
 } from "./state.js";
@@ -66,6 +68,24 @@ export interface WorldOptions {
   takeOverStaleLock?: boolean;
   /** JSONL journal path. Tail is appended at step 12 of every tick. */
   persistPath?: string;
+}
+
+/** The world class in a journal file's genesis line, without loading the journal. */
+function readGenesisWorldClass(path: string): WorldClass | "unclassified" {
+  if (!existsSync(path)) throw new Error(`no journal at ${path}`);
+  const text = readFileSync(path, "utf8");
+  const end = text.indexOf("\n");
+  let genesis: { type?: unknown; payload?: { config?: { worldClass?: unknown } } };
+  try {
+    genesis = JSON.parse(end === -1 ? text : text.slice(0, end));
+  } catch {
+    throw new Error(`journal ${path}: the genesis line is unreadable, so its world class cannot be checked`);
+  }
+  if (genesis.type !== "WORLD_GENESIS") throw new Error(`journal ${path} does not begin with WORLD_GENESIS`);
+  const c = genesis.payload?.config?.worldClass;
+  if (c === undefined) return "unclassified";
+  if (c === "scratch" || c === "persistent") return c;
+  throw new Error(`journal ${path}: unknown world class ${JSON.stringify(c)}`);
 }
 
 function effortOf(action: Action): number {
@@ -177,11 +197,17 @@ export class World {
   /** Restart path: load + verify the JSONL journal, then restore from it. */
   static restoreFromFile(
     path: string,
-    opts: { snapshotPath?: string; takeOverStaleLock?: boolean } = {},
+    opts: { snapshotPath?: string; takeOverStaleLock?: boolean; expectWorldClass?: WorldClass } = {},
   ): World {
     // One writer per journal: lock before the load, because the load may repair the file.
     const lock = WriterLock.acquire(path, opts);
     try {
+      // The class check reads only the genesis line, before any load or repair.
+      if (opts.expectWorldClass !== undefined) {
+        const actual = readGenesisWorldClass(path);
+        const ok = opts.expectWorldClass === "scratch" ? actual === "scratch" : actual !== "scratch";
+        if (!ok) throw new WorldClassError(opts.expectWorldClass, actual);
+      }
       const world = World.restoreFromFileLocked(path, opts);
       world.writerLock = lock;
       return world;
@@ -225,6 +251,11 @@ export class World {
 
   get tickNumber(): number {
     return this.st.tick;
+  }
+  /** The class fixed in WORLD_GENESIS; "unclassified" for journals that predate it. */
+  get worldClass(): WorldClass | "unclassified" {
+    const config = this.journal.entries()[0]?.payload.config as WorldConfig | undefined;
+    return config?.worldClass ?? "unclassified";
   }
   get state(): WorldState {
     return structuredClone(this.st);
@@ -282,6 +313,11 @@ export class World {
   bindBackend(seatId: string, backend: BackendRef): void {
     if (!isBackendRef(backend)) {
       throw new Error("backend needs non-empty providerId and version");
+    }
+    // Fail-closed, matching validateConfig: only a world DECLARED scratch
+    // may bind a test double; unclassified is treated as persistent.
+    if (this.worldClass !== "scratch" && isTestDouble(backend)) {
+      throw new Error(`a world of class ${this.worldClass} cannot bind a test double (${backend.providerId}) to ${seatId}`);
     }
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }
