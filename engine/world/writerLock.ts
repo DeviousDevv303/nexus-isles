@@ -141,3 +141,21 @@ export function clearStopFile(journalPath: string): void {
   const p = stopPathFor(journalPath);
   if (existsSync(p)) unlinkSync(p);
 }
+
+/**
+ * A journal opened as the wrong world class. Thrown before the journal is
+ * loaded or repaired, so a scratch history is never advanced as persistent
+ * and a persistent one never as scratch.
+ */
+export class WorldClassError extends Error {
+  constructor(
+    readonly expected: string,
+    readonly actual: string,
+  ) {
+    super(
+      `refusing to open a ${actual} journal as ${expected}: scratch and persistent histories never mix ` +
+        `(the class is fixed in WORLD_GENESIS)`,
+    );
+    this.name = "WorldClassError";
+  }
+}
