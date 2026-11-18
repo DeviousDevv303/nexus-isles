@@ -25,7 +25,15 @@ which plain Node cannot.)
   (seed, Juarez map, seat list with backend identities) and journals
   `WORLD_GENESIS`. Later runs in the same directory resume from the
   journal: the hash chain is verified before any new tick, and a supplied
-  config is cross-checked against the journaled genesis (seed + roster).
+  config is cross-checked against the journaled genesis (seed + roster +
+  world class).
+- World class (`worldClass: "scratch" | "persistent"` in the genesis
+  config): scratch worlds may seat the labeled test doubles; persistent
+  worlds refuse them, and the two classes' histories never mix — a resume
+  whose class disagrees with the journaled genesis is refused before the
+  journal is loaded. A config that omits the field is treated fail-closed
+  as persistent, and the runner's log says so
+  (`RUNNER world-class config=omitted effective=persistent`).
 - `--ticks N` runs N driver ticks and exits (smoke runs). Without it the
   runner ticks until SIGINT/SIGTERM, finishing the in-flight tick first.
 - One live runner per data directory: `runner.lock` holds the owner's pid.

@@ -13,7 +13,8 @@
 //   runner.lock     held by the one live runner for this directory
 //
 // Log lines are stable and greppable, one per event, key=value fields:
-//   RUNNER start mode=genesis|resumed tick=N head=HASH seats=a,b
+//   RUNNER world-class config=scratch|persistent|omitted effective=CLASS
+//   RUNNER start mode=genesis|resumed tick=N head=HASH worldClass=CLASS seats=a,b
 //   RUNNER lock-takeover path=... previous=pid=N|unreadable
 //   RUNNER seat-skipped seat=ID reason=dead
 //   TICK tick=N head=HASH submitted=S refused=R closed=a,b|- [prime=1]
@@ -35,7 +36,7 @@ import { join } from "node:path";
 import { World } from "../engine/world/world.js";
 import { SeatDriver, type DrivenSeat } from "../seats/driver.js";
 import { BUILTIN_BACKEND_FACTORIES, createBackend, type BackendFactory } from "./backends.js";
-import { worldConfigFor, type GenesisConfig, type RunnerSeatSpec } from "./config.js";
+import { effectiveWorldClass, worldConfigFor, type GenesisConfig, type RunnerSeatSpec } from "./config.js";
 
 export interface RunnerOptions {
   /** Directory holding this world's journal, snapshot and lock. */
@@ -203,13 +204,29 @@ export class LaunchRunner {
   // ---- world open / create ----------------------------------------------
 
   private openWorld(): void {
+    if (this.genesis) {
+      // The class in force is always said out loud. A config that omits
+      // worldClass is never silently assigned one: the log names the
+      // omission and the fail-closed effective class (undeclared =
+      // persistent, the PR #32 posture) before the world is touched.
+      this.logLine(
+        `RUNNER world-class config=${this.genesis.worldClass ?? "omitted"} effective=${effectiveWorldClass(this.genesis)}`,
+      );
+    }
     const hasJournal = existsSync(this.journalPath) && statSync(this.journalPath).size > 0;
     let world: World;
     if (hasJournal) {
       // Resume. restoreFromFile loads + verifies the whole hash chain and
       // refuses loudly on any failure or a mid-tick tail — no tick is ever
-      // taken on an unverified journal.
-      world = World.restoreFromFile(this.journalPath, { snapshotPath: this.snapshotPath });
+      // taken on an unverified journal. With a genesis config supplied, its
+      // effective world class is also handed to the engine, which checks
+      // the journaled genesis class BEFORE any load or repair
+      // (expectWorldClass, PR #32); crossCheckGenesis re-checks it below
+      // alongside the seed and the seat roster.
+      world = World.restoreFromFile(this.journalPath, {
+        snapshotPath: this.snapshotPath,
+        ...(this.genesis ? { expectWorldClass: effectiveWorldClass(this.genesis) } : {}),
+      });
       this.mode = "resumed";
     } else {
       if (!this.genesis) {
@@ -241,7 +258,7 @@ export class LaunchRunner {
     this.driver = new SeatDriver(world, driven);
     this.logLine(
       `RUNNER start mode=${this.mode} tick=${world.tickNumber} head=${world.headHash} ` +
-        `seats=${driven.map((d) => d.seatId).join(",") || "-"}`,
+        `worldClass=${world.worldClass} seats=${driven.map((d) => d.seatId).join(",") || "-"}`,
     );
     if (world.tickNumber === 0) {
       // Prime: one engine tick delivers the first observations, so the
@@ -267,6 +284,21 @@ export class LaunchRunner {
       if (!world.state.residents[seat.seatId]) {
         throw new Error(`genesis config seat ${seat.seatId} is not a resident of the journaled world`);
       }
+    }
+    // World class, same posture as the engine's expectWorldClass check
+    // (which already ran, before any load): an expected scratch class
+    // requires a scratch journal; an expected persistent class — declared,
+    // or the fail-closed default for an omitted field — accepts a
+    // persistent or pre-class ("unclassified") journal and refuses a
+    // scratch one. Scratch and persistent histories never mix.
+    const expected = effectiveWorldClass(genesis);
+    const actual = world.worldClass;
+    const classOk = expected === "scratch" ? actual === "scratch" : actual !== "scratch";
+    if (!classOk) {
+      throw new Error(
+        `genesis config worldClass ${genesis.worldClass ?? "omitted (fail-closed: persistent)"} does not match ` +
+          `the journal's world class ${actual} — refusing to drive the wrong world`,
+      );
     }
   }
 
