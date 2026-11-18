@@ -159,3 +159,27 @@ export class WorldClassError extends Error {
     this.name = "WorldClassError";
   }
 }
+
+/**
+ * A tick delivery that does not name the next tick. Thrown before anything
+ * is written: a repeated delivery of a committed tick never ticks twice, and
+ * a delivery from the future never skips one.
+ */
+export class TickDeliveryError extends Error {
+  constructor(
+    readonly expectTick: number,
+    readonly nextTick: number,
+  ) {
+    super(
+      expectTick < nextTick
+        ? `tick ${expectTick} is already committed (next is ${nextTick}): a repeated delivery never ticks twice`
+        : `tick ${expectTick} is not the next tick (next is ${nextTick}): refusing to skip or guess`,
+    );
+    this.name = "TickDeliveryError";
+  }
+}
+
+/** Throws TickDeliveryError unless `expectTick` (when given) is exactly `nextTick`. */
+export function checkTickDelivery(expectTick: number | undefined, nextTick: number): void {
+  if (expectTick !== undefined && expectTick !== nextTick) throw new TickDeliveryError(expectTick, nextTick);
+}
