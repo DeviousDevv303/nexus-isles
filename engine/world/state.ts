@@ -191,10 +191,13 @@ export function validateConfig(config: WorldConfig): void {
   if (config.worldClass !== undefined && !WORLD_CLASSES.includes(config.worldClass)) {
     throw new Error(`worldClass must be one of ${WORLD_CLASSES.join(", ")}`);
   }
-  if (config.worldClass === "persistent") {
+  // Fail-closed: only a world DECLARED scratch may seat a test double. An
+  // undeclared class is treated as persistent (Kimi's spec: undeclared =
+  // persistent), so the ban covers persistent and unclassified worlds alike.
+  if (config.worldClass !== "scratch") {
     for (const r of config.residents) {
       if (r.backend && isTestDouble(r.backend)) {
-        throw new Error(`resident ${r.id}: a persistent world cannot seat a test double (${r.backend.providerId}); test doubles run in scratch worlds only`);
+        throw new Error(`resident ${r.id}: a world of class ${config.worldClass ?? "unclassified"} cannot seat a test double (${r.backend.providerId}); test doubles run in scratch worlds only`);
       }
     }
   }
