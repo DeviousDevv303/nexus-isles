@@ -9,7 +9,7 @@
 
 import { readFileSync } from "node:fs";
 import { JUAREZ_MAP_ID, juarezConfig } from "../engine/world/maps/juarez.js";
-import type { BackendRef, ResidentConfig, WorldConfig } from "../engine/world/state.js";
+import { WORLD_CLASSES, type BackendRef, type ResidentConfig, type WorldClass, type WorldConfig } from "../engine/world/state.js";
 
 export interface RunnerSeatSpec {
   seatId: string;
@@ -27,6 +27,13 @@ export interface GenesisConfig {
   seed: number;
   /** "juarez" (or the map id "juarez-v1"). The only map the runner ships. */
   map: string;
+  /**
+   * World class carried into WORLD_GENESIS (world-class-v1). Absent =
+   * unclassified, which the engine treats as persistent — so a genesis
+   * seating a test-double backend must declare "scratch" or the engine
+   * refuses it at creation.
+   */
+  worldClass?: WorldClass;
   seats: RunnerSeatSpec[];
 }
 
@@ -88,6 +95,9 @@ export function parseGenesisConfig(raw: unknown): GenesisConfig {
   if (map !== "juarez" && map !== JUAREZ_MAP_ID) {
     throw new Error(`genesis config: unsupported map ${JSON.stringify(map)} — the runner ships the Juarez map only`);
   }
+  if (raw.worldClass !== undefined && !(WORLD_CLASSES as readonly unknown[]).includes(raw.worldClass)) {
+    throw new Error(`genesis config: worldClass must be one of ${WORLD_CLASSES.join(", ")}`);
+  }
   if (!Array.isArray(raw.seats) || raw.seats.length === 0) {
     throw new Error("genesis config: seats must be a non-empty array");
   }
@@ -97,7 +107,12 @@ export function parseGenesisConfig(raw: unknown): GenesisConfig {
     if (seen.has(s.seatId)) throw new Error(`genesis config: duplicate seat ${s.seatId}`);
     seen.add(s.seatId);
   }
-  return { seed: raw.seed as number, map: map as string, seats };
+  return {
+    seed: raw.seed as number,
+    map: map as string,
+    ...(raw.worldClass !== undefined ? { worldClass: raw.worldClass as WorldClass } : {}),
+    seats,
+  };
 }
 
 export function loadGenesisConfig(path: string): GenesisConfig {
@@ -121,5 +136,7 @@ export function worldConfigFor(genesis: GenesisConfig): WorldConfig {
     intel: s.intel,
     backend: s.backend,
   }));
-  return juarezConfig(residents);
+  // The declared class (if any) is carried into the engine config — and so
+  // into WORLD_GENESIS. Undeclared stays undeclared: no class is injected.
+  return { ...juarezConfig(residents), ...(genesis.worldClass ? { worldClass: genesis.worldClass } : {}) };
 }

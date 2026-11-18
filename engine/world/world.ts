@@ -314,8 +314,10 @@ export class World {
     if (!isBackendRef(backend)) {
       throw new Error("backend needs non-empty providerId and version");
     }
-    if (this.worldClass === "persistent" && isTestDouble(backend)) {
-      throw new Error(`a persistent world cannot bind a test double (${backend.providerId}) to ${seatId}`);
+    // Fail-closed, matching validateConfig: only a world DECLARED scratch
+    // may bind a test double; unclassified is treated as persistent.
+    if (this.worldClass !== "scratch" && isTestDouble(backend)) {
+      throw new Error(`a world of class ${this.worldClass} cannot bind a test double (${backend.providerId}) to ${seatId}`);
     }
     this.pendingBinds.set(seatId, { providerId: backend.providerId, version: backend.version });
   }

@@ -20,6 +20,9 @@ function genesis(seed = 777): GenesisConfig {
   return parseGenesisConfig({
     seed,
     map: "juarez",
+    // Declared scratch: both seats run the labeled scripted test double,
+    // which only a declared scratch world may seat (world-class-v1).
+    worldClass: "scratch",
     seats: [
       {
         seatId: "nexus",

@@ -93,3 +93,50 @@ describe("world class: scratch and persistent histories never mix", () => {
     expect(() => World.create(5, { ...config(undefined, REAL), worldClass: "demo" as WorldClass })).toThrow(/worldClass must be one of/);
   });
 });
+
+// Regression: the test-double ban is fail-closed. Only a world DECLARED
+// scratch may seat or bind a test double; an undeclared class is treated as
+// persistent (Kimi's spec: undeclared = persistent). Before this fix both
+// guards keyed on `=== "persistent"` only, so an undeclared world could seat
+// and bind test doubles and evade the ban.
+describe("world class: undeclared is barred for test doubles (fail-closed)", () => {
+  it("(a) genesis: an undeclared world cannot seat a test double", () => {
+    expect(() => World.create(5, config(undefined, DOUBLE))).toThrow(/class unclassified cannot seat a test double/);
+  });
+
+  it("(b) bind: an undeclared world cannot bind a test double, live or restored", () => {
+    const w = World.create(5, config(undefined, REAL));
+    expect(w.worldClass).toBe("unclassified");
+    expect(() => w.bindBackend("alpha", DOUBLE)).toThrow(/class unclassified cannot bind a test double/);
+    expect(() => w.bindBackend("alpha", { providerId: "provider-under-test", version: "v2" })).not.toThrow();
+    w.close();
+
+    const path = journalOf(undefined, REAL);
+    const restored = World.restoreFromFile(path);
+    expect(restored.worldClass).toBe("unclassified");
+    expect(() => restored.bindBackend("alpha", DOUBLE)).toThrow(/class unclassified cannot bind a test double/);
+    restored.close();
+  });
+
+  it("(c) declared scratch still seats and binds test doubles", () => {
+    const w = World.create(5, config("scratch", DOUBLE));
+    expect(() => w.bindBackend("alpha", { ...DOUBLE, version: "v2" })).not.toThrow();
+    w.tick();
+    expect(w.worldClass).toBe("scratch");
+    w.close();
+  });
+
+  it("(d) declared persistent refusals still hold, at genesis and by bind", () => {
+    expect(() => World.create(5, config("persistent", DOUBLE))).toThrow(/class persistent cannot seat a test double/);
+    const w = World.create(5, config("persistent", REAL));
+    expect(() => w.bindBackend("alpha", DOUBLE)).toThrow(/class persistent cannot bind a test double/);
+    w.close();
+  });
+
+  it("an undeclared world with a real backend is unaffected", () => {
+    const w = World.create(5, config(undefined, REAL));
+    w.tick();
+    expect(w.worldClass).toBe("unclassified");
+    w.close();
+  });
+});
