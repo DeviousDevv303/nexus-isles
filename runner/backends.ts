@@ -5,15 +5,17 @@
 // the config file alone: a config may name a provider, but if no factory is
 // registered for it the runner refuses to start rather than improvise one.
 //
-// The registry ships with exactly one backend: the deterministic scripted
-// TEST DOUBLE from seats/driver.ts, honestly labelled
-// "test-double:scripted-policy". A real backend (e.g. the Nexus adapter)
-// registers by adding a factory to this map in code; its providerId and
-// version are then journaled on every action by the engine (AT-20).
+// The registry ships with the deterministic scripted TEST DOUBLE from
+// seats/driver.ts, honestly labelled "test-double:scripted-policy", and
+// the real Nexus adapter (runner/nexusBackend.ts), labelled with the
+// checkpoint it actually serves. A backend registers by adding a factory
+// to this map in code; its providerId and version are then journaled on
+// every action by the engine (AT-20).
 
 import { ScriptedPolicyBackend, type SeatBackend } from "../seats/driver.js";
 import type { Action, Observation } from "../seats/seatProvider.js";
 import type { RunnerSeatSpec } from "./config.js";
+import { createNexusLocalBackend, NEXUS_RUN25_REF } from "./nexusBackend.js";
 
 export type BackendFactory = (seat: RunnerSeatSpec) => SeatBackend;
 
@@ -52,6 +54,11 @@ export function survivalPolicy(input: { observation: Observation }): readonly Ac
 
 export const BUILTIN_BACKEND_FACTORIES: Readonly<Record<string, BackendFactory>> = {
   "test-double:scripted-policy": () => new ScriptedPolicyBackend(survivalPolicy),
+  // The real Nexus adapter: Cristian's own LLM, the seated Run 25
+  // checkpoint, served by the Python sidecar in runner/nexusBackend.ts.
+  // The sidecar process is spawned lazily on the first propose() and the
+  // checkpoint loads once per process.
+  [NEXUS_RUN25_REF.providerId]: () => createNexusLocalBackend(),
 };
 
 /** Instantiate the backend for a seat, or refuse loudly if none is registered. */
