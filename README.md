@@ -40,6 +40,12 @@ world-fact rewriting (AA11).
 
 Phase 1 exit = acceptance tests AT-01..AT-19 green.
 
+## Viewer / auditor surface
+
+The local world viewer is a read-only auditor surface. It displays committed replay frames and labels per-tick node-changing journal entries as **OBSERVED**, using recorded event payloads rather than recomputing frame state.
+
+Replay frames show committed state. Observation payloads show mid-tick intelligence. They are different registers, not competing accounts of the world.
+
 ## Develop
 
 ```

@@ -22,11 +22,37 @@ import { World } from "../../engine/world/world.js";
 import { ScriptedPolicyBackend, SeatDriver } from "../../seats/driver.js";
 import { survivalPolicy } from "../../runner/backends.js";
 import { parseGenesisConfig, worldConfigFor } from "../../runner/config.js";
-import { AUDITOR_LABEL, renderViewerHtml } from "../../viewer/render.js";
+import { AUDITOR_LABEL, renderViewerHtml, TWO_REGISTERS_SENTENCE } from "../../viewer/render.js";
 import { loadJournalForViewing, replayFrames, type TickFrame } from "../../viewer/replay.js";
 import { tempDir } from "../helpers/worldFixtures.js";
 
 const ROOT = join(import.meta.dirname, "..", "..");
+const AUDITED_JOURNAL_HEAD = "467dd2e69d0564f372c7cf7b8c3957b3b4dd7221474b4a929e7708d8a3b2099c";
+const AUDITED_STATE_HASHES = [
+  "21aff89ae91081bd41567bb53481b34311d7950fc9eda5a0aa3e2fcbf2bc1eb1",
+  "3209ff212c231ba57a793de820b8061026417854f5ad0508749261c1cea3bb08",
+  "4fa7228acb11cea79f0f107ce467bcd3b196a9a8014c6b8c6308ce0697bf9513",
+  "c53c0e9036625de3e178dedab598cbbbb70be0ba210e379d5a20a3564cf2e4a0",
+  "5a57884ea3bf12dbfc9b35afa65d5b24ec8ddd8c14cf1b10fe2aa137d9e039ff",
+  "945278946568d26c75b9b7c5ff854d2e2e7dce284e7d986095c145d109d69876",
+  "11cd289eea8a543382d6c8392802f7bdea48f86598246555dd36b7b5fb7495ee",
+  "8ff2c0221b1d2401df69b5b0f9379bba5976ce6cd515813976121b20ac000029",
+];
+
+type RenderedNodeEvent = {
+  tick: number;
+  journalIndex: number;
+  type: string;
+  node: string;
+  amountField: string;
+  amount: number;
+  resident?: string;
+};
+
+type RenderedPayload = {
+  journalHeadHash: string;
+  frames: Array<{ tick: number; stateHash: string; nodeEvents: RenderedNodeEvent[] }>;
+};
 
 let journalPath: string;
 let frames: TickFrame[];
@@ -57,9 +83,32 @@ const frameAt = (tick: number): TickFrame => {
   return f;
 };
 
+function renderFixture(): { journal: ReturnType<typeof loadJournalForViewing>; html: string } {
+  const journal = loadJournalForViewing(journalPath);
+  const html = renderViewerHtml(frames, {
+    journalLabel: journalPath,
+    journalEntries: journal.length,
+    journalHeadHash: journal.headHash(),
+  });
+  return { journal, html };
+}
+
+function renderedPayload(html: string): RenderedPayload {
+  const match = html.match(/<script type="application\/json" id="viewer-data">([\s\S]*?)<\/script>/);
+  if (!match) throw new Error("rendered viewer has no embedded data payload");
+  return JSON.parse(match[1]) as RenderedPayload;
+}
+
 describe("viewer replay of the seed-424242 Juárez fixture", () => {
   it("replays one frame per committed tick, genesis through the final tick", () => {
     expect(frames.map((f) => f.tick)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it("keeps the audited journal head and per-tick replay hashes unchanged", () => {
+    const journal = loadJournalForViewing(journalPath);
+    expect(journal.length).toBe(87);
+    expect(journal.headHash()).toBe(AUDITED_JOURNAL_HEAD);
+    expect(frames.map((f) => f.stateHash)).toEqual(AUDITED_STATE_HASHES);
   });
 
   it("state at three ticks differs on concrete fields", () => {
@@ -94,19 +143,56 @@ describe("viewer replay of the seed-424242 Juárez fixture", () => {
 });
 
 describe("rendered page", () => {
-  it("carries the auditor-surface label and the final tick's hash", () => {
-    const journal = loadJournalForViewing(journalPath);
-    const html = renderViewerHtml(frames, {
-      journalLabel: "fixture journal.jsonl",
-      journalEntries: journal.length,
-      journalHeadHash: journal.headHash(),
-    });
+  it("carries the auditor-surface label, final hash, and audited journal head", () => {
+    const { journal, html } = renderFixture();
+    const payload = renderedPayload(html);
     expect(html).toContain(AUDITOR_LABEL);
     expect(html).toContain("AUDITOR'S SURFACE");
     expect(html).toContain("NOT a resident's view");
     expect(html).toContain(engineFinalHash);
     expect(html).toContain('id="scrub"'); // the tick scrubber
     expect(html).toContain("mercado-centro");
+    expect(payload.journalHeadHash).toBe(AUDITED_JOURNAL_HEAD);
+    expect(payload.frames.map((f) => f.stateHash)).toEqual(AUDITED_STATE_HASHES);
+    expect(journal.headHash()).toBe(AUDITED_JOURNAL_HEAD);
+  });
+
+  it("shows each requested OBSERVED node event from its raw journal entry per tick", () => {
+    const { journal, html } = renderFixture();
+    const payload = renderedPayload(html);
+    const rawEvents = journal.entries().filter((entry) =>
+      entry.type === "ENV_BLIGHT" || entry.type === "RESOURCE_REGEN" || entry.type === "GATHER_GRANTED",
+    );
+    const displayedEvents = payload.frames.flatMap((frame) => frame.nodeEvents);
+
+    expect(displayedEvents).toHaveLength(rawEvents.length);
+    for (const frame of payload.frames) {
+      const sourceEntries = rawEvents.filter((entry) => entry.tick === frame.tick);
+      expect(frame.nodeEvents.map((event) => event.journalIndex)).toEqual(sourceEntries.map((entry) => entry.index));
+    }
+    for (const entry of rawEvents) {
+      const amountField = entry.type === "ENV_BLIGHT" ? "loss" : entry.type === "RESOURCE_REGEN" ? "gained" : "granted";
+      const event = displayedEvents.find((item) => item.journalIndex === entry.index);
+      expect(event).toMatchObject({
+        tick: entry.tick,
+        journalIndex: entry.index,
+        type: entry.type,
+        node: entry.payload.node,
+        amountField,
+        amount: entry.payload[amountField],
+      });
+      if (entry.type === "GATHER_GRANTED") expect(event?.resident).toBe(entry.payload.resident);
+    }
+    expect(html).toContain("OBSERVED journal event");
+    expect(html).toContain("No OBSERVED node events recorded for this tick.");
+  });
+
+  it("places the exact two-registers sentence in the page legend and README", () => {
+    const { html } = renderFixture();
+    const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+    expect(html).toContain('id="evidence-legend"');
+    expect(html).toContain(TWO_REGISTERS_SENTENCE);
+    expect(readme).toContain(TWO_REGISTERS_SENTENCE);
   });
 });
 
