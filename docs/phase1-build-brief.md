@@ -8,7 +8,7 @@ freeze is not launch: no live residents are active and no launch is authorized.
 Run 32 remains the last technical pre-launch gate; Tier-0 mechanics, heir
 eligibility, and the launch word remain owner decisions.
 
-## Owner rulings — all spoken, build may proceed on them
+## Owner rulings — all spoken, build may proceed on them (historical — superseded by the frozen constitution; see docs/HANDOFF.md)
 
 1. **Annex B dynasty weights: ADOPTED** — dynasty-score-v1 as written in v0.6.5 Annex B (survival .25 / territory-years .20 / verified artifacts .20 / successor continuity .20 / wealth-resilience .15; executable formula with normalization, sqrt diminishing returns, missing-axis renormalization; Influence deferred to dynasty-score-v2).
 2. **Blend rule: RATIFIED as drafted** — a blended child founds a NEW lineage, dual ancestry recorded, counts toward NEITHER parent for population, extinction, or scoring.
