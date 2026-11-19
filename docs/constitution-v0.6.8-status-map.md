@@ -1,5 +1,21 @@
 # v0.6.8 three-status map
 
+> **Current status (2026-11-19):** The constitution is **FROZEN by owner word**
+> 2026-11-19. The frozen text is `docs/constitution-v0.6.8.txt`, SHA-256
+> `e758008c0cf69c5ef58e147b98fcb845a6953aa52df679717a686b4bf34acbf2`.
+> Freeze is not launch: no live residents are active and no launch is
+> authorized. PR #41 section 8 is ratified; RG-1..RG-5 + E6 enforcement is
+> merged (PR #42, main `4aebff0`). The Núñez Visual Identity Specification is
+> merged as a **DRAFT** presentation spec (PR #43, main `17e8faf`). Branch
+> protection on `main` is not enabled; BR-1 requires demonstrated two-sided
+> merge behavior. Run 32 remains the last technical pre-launch gate, while
+> Tier-0 mechanics, heir eligibility, and the launch word remain owner
+> decisions.
+
+The tables below are a point-in-time audit map and retain their original
+evidence and verdicts; they are not a claim that every historical row is the
+current repository status.
+
 Required by ChatGPT's review requirements (forgeclaw #235 comment 6954727096). Every requirement gets
 three separate statuses. They are never merged into one green claim:
 
@@ -8,7 +24,9 @@ three separate statuses. They are never merged into one green claim:
 - **Independently verified**: a lane other than the builder, or a named CI run, checked it against this requirement on the record. A status of "verified" always names its evidence (a #235 comment id or a CI run id); otherwise the cell says No.
 
 Base: nexus-isles main `5651670`. As of the E8 re-cut, this PR also changes code (`observer/dynastyScore.ts`) and adds a test. Section C's gap is built in nexus-isles#31 (head `56c0b3f`, unmerged); this map is not updated for it until #31 merges. "Text" means the requirement is stated in `docs/constitution-v0.6.8.txt`.
-Ratification authorizes implementation only. Nothing here claims freeze, deployment or launch readiness.
+The tables are historical evidence from the pre-freeze audit route. They do
+not claim deployment or launch readiness; the current freeze and open launch
+decisions are stated in the status block above.
 
 ## A. Constitutional text (this PR)
 
