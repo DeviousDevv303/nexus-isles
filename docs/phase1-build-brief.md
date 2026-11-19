@@ -1,6 +1,12 @@
 # Nexus Isles — Phase 1 Build Brief (for Claude's build lane)
 
-Status as of 2026-11-16 ~15:18 CST. Repo: DeviousDevv303/nexus-isles (main carries constitution v0.6.5 text at f4558473, Doctrine Annex, Núñez Royal Blood Charter). Engine skeleton complete on main (78/78 tests, tsc clean, build order Steps 1–7).
+Status as of 2026-11-16 ~15:18 CST. This is a historical planning brief; its
+point-in-time build notes are not the current repository status. As of
+2026-11-19, the Constitution is FROZEN by owner word (text SHA-256
+`e758008c0cf69c5ef58e147b98fcb845a6953aa52df679717a686b4bf34acbf2`), but
+freeze is not launch: no live residents are active and no launch is authorized.
+Run 32 remains the last technical pre-launch gate; Tier-0 mechanics, heir
+eligibility, and the launch word remain owner decisions.
 
 ## Owner rulings — all spoken, build may proceed on them
 
@@ -44,12 +50,17 @@ Status as of 2026-11-16 ~15:18 CST. Repo: DeviousDevv303/nexus-isles (main carri
 
 **Governing build principle (adopted):** constitutional interpretation is configurable only through owner-authorized rulings; no lane recommendation is ever hardcoded as law; where a lane's text and the owner's word differ, the owner's word is the spec.
 
-## Still gating the FREEZE and live residents (not the build)
+## Historical pre-freeze checklist (superseded; live status above)
 
-- GPT's final re-check of v0.6.5 (text in repo at f4558473).
-- AA13 redraft to the owner's ruling + dual audit.
-- Freeze execution on the record (#235) pinning v0.6.5 by hash.
-- Verified launch report before any live resident: Phase 1 = 1 island, 3+ independently controlled residents, unscripted first lifecycle, no death-seeding.
+The following was the pre-freeze checklist when this brief was written. It is
+retained as historical context and must not be read as saying the freeze is
+still pending:
+
+- GPT's final re-check of v0.6.5 (historical text in the repo at f4558473).
+- AA13 redraft to the owner's ruling + dual audit (historical work item).
+- Freeze execution on the record (completed by owner word 2026-11-19).
+- Verified launch report before any live resident remains required; freeze does
+  not authorize launch or resident activation.
 
 ## Record
 

@@ -194,23 +194,90 @@ export function checkRg5(repo: Repo, reg: Registry): Violation[] {
   return out;
 }
 
-/** E6 clause 7: no import path from the validation side to observer/. */
-export function checkObserverImports(repo: Repo): Violation[] {
-  const out: Violation[] = [];
-  for (const [path, text] of repo) {
-    if (!path.endsWith(".ts") || !NO_OBSERVER_DIRS.some((d) => path.startsWith(d))) continue;
-    const dir = path.split("/").slice(0, -1);
-    for (const m of text.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
-      const spec = m[1];
-      if (!spec.startsWith(".")) continue;
-      const parts = [...dir];
-      for (const seg of spec.split("/")) {
-        if (seg === "..") parts.pop();
-        else if (seg !== ".") parts.push(seg);
+interface ImportEdge {
+  from: string;
+  to: string;
+  spec: string;
+  line: number;
+}
+
+function normalizedPath(path: string): string {
+  const parts: string[] = [];
+  for (const segment of path.split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") parts.pop();
+    else parts.push(segment);
+  }
+  return parts.join("/");
+}
+
+/** Resolve source forms emitted by TypeScript/Node against the checked-out snapshot. */
+function resolveRelative(repo: Repo, from: string, spec: string): string | undefined {
+  const base = normalizedPath([...from.split("/").slice(0, -1), ...spec.split("/")].join("/"));
+  const extensionless = base.replace(/\.(?:[cm]?js|jsx|tsx?)$/, "");
+  const candidates = [
+    base,
+    extensionless,
+    `${extensionless}.ts`, `${extensionless}.tsx`, `${extensionless}.js`, `${extensionless}.jsx`, `${extensionless}.json`,
+    `${extensionless}/index.ts`, `${extensionless}/index.tsx`, `${extensionless}/index.js`,
+  ];
+  return candidates.find((candidate) => repo.has(candidate));
+}
+
+function importEdges(repo: Repo): { edges: ImportEdge[]; unresolved: Violation[] } {
+  const edges: ImportEdge[] = [];
+  const unresolved: Violation[] = [];
+  for (const [from, text] of repo) {
+    if (!/\.(?:ts|tsx|js|jsx)$/.test(from)) continue;
+    text.split("\n").forEach((line, index) => {
+      for (const match of line.matchAll(/(?:from|import)\s*\(?\s*["']([^"']+)["']/g)) {
+        const spec = match[1];
+        if (!spec.startsWith(".")) continue;
+        const to = resolveRelative(repo, from, spec);
+        if (!to) unresolved.push({ gate: "E6", file: from, line: index + 1, message: `unresolved relative import ${spec} in the checked-out snapshot` });
+        else edges.push({ from, to, spec, line: index + 1 });
       }
-      const target = parts.join("/");
-      if (target.startsWith("observer/") || target === "observer") {
-        out.push({ gate: "E6", file: path, message: `imports ${spec}: the observer must stay out of the validation path (E6 clause 7)` });
+    });
+  }
+  return { edges, unresolved };
+}
+
+/** E6 clause 7: no relative import path from validation code can reach observer/. */
+export function checkObserverImports(repo: Repo): Violation[] {
+  const { edges, unresolved } = importEdges(repo);
+  const outgoing = new Map<string, ImportEdge[]>();
+  for (const edge of edges) outgoing.set(edge.from, [...(outgoing.get(edge.from) ?? []), edge]);
+  const unresolvedByFile = new Map<string, Violation[]>();
+  for (const violation of unresolved) unresolvedByFile.set(violation.file as string, [...(unresolvedByFile.get(violation.file as string) ?? []), violation]);
+  const out: Violation[] = [];
+  const reportedUnresolved = new Set<string>();
+  const reportedObserverEdges = new Set<string>();
+  const isObserver = (path: string) => path === "observer" || path.startsWith("observer/");
+
+  for (const root of repo.keys()) {
+    if (!root.endsWith(".ts") || !NO_OBSERVER_DIRS.some((dir) => root.startsWith(dir))) continue;
+    const queue: Array<{ path: string; chain: ImportEdge[] }> = [{ path: root, chain: [] }];
+    const visited = new Set([root]);
+    while (queue.length) {
+      const current = queue.shift() as { path: string; chain: ImportEdge[] };
+      for (const violation of unresolvedByFile.get(current.path) ?? []) {
+        const key = `${violation.file}:${violation.line}:${violation.message}`;
+        if (!reportedUnresolved.has(key)) { reportedUnresolved.add(key); out.push(violation); }
+      }
+      for (const edge of outgoing.get(current.path) ?? []) {
+        const chain = [...current.chain, edge];
+        if (isObserver(edge.to)) {
+          const edgeKey = `${edge.from}\u0000${edge.to}`;
+          if (reportedObserverEdges.has(edgeKey)) continue;
+          reportedObserverEdges.add(edgeKey);
+          const route = [root, ...chain.map((item) => item.to)].join(" → ");
+          out.push({ gate: "E6", file: edge.from, line: edge.line, message: `observer is reachable from validation path: ${route}` });
+          continue;
+        }
+        if (!visited.has(edge.to)) {
+          visited.add(edge.to);
+          queue.push({ path: edge.to, chain });
+        }
       }
     }
   }
