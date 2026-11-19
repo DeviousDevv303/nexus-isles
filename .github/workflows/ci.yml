@@ -25,5 +25,7 @@ jobs:
       - run: npm ci
       - name: Type check
         run: npx tsc --noEmit
+      - name: RG-1..RG-5 and E6 governance checks
+        run: npx vitest run tests/governance/rg-gates.test.ts
       - name: Tests, including the RG-1..RG-5 and E6 governance gates
         run: npx vitest run

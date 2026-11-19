@@ -109,4 +109,22 @@ describe("each gate fires on a planted violation", () => {
     const v = checkObserverImports(r);
     expect(v.map((x) => x.file)).toEqual(["engine/world/world.ts"]);
   });
+
+  it("E6: detects a transitive observer edge and reports the shortest route", () => {
+    const r = new Map([
+      ["engine/world/world.ts", 'import { read } from "../../lineage/read.js";\n'],
+      ["lineage/read.ts", 'import { report } from "../observer/report.js";\n'],
+      ["observer/report.ts", "export const report = true;\n"],
+    ]);
+    const v = checkObserverImports(r);
+    expect(v).toHaveLength(1);
+    expect(v[0].file).toBe("lineage/read.ts");
+    expect(v[0].message).toContain("engine/world/world.ts → lineage/read.ts → observer/report.ts");
+  });
+
+  it("E6: rejects an unresolved relative import instead of treating it as a pass", () => {
+    const v = checkObserverImports(new Map([["engine/world/world.ts", 'import { missing } from "../../lineage/missing.js";\n']]));
+    expect(v).toHaveLength(1);
+    expect(v[0].message).toContain("unresolved relative import");
+  });
 });
