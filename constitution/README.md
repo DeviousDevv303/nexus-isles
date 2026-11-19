@@ -1,10 +1,9 @@
 # Constitution
 
-The law, versioned. Current state: **v0.6 PREPARED (engineering baseline),
-not frozen.** The v0.6 document is pending Muse's line-by-line verification
-against the owner's dynastic ruling (#235 comment 6908887122) and the
-AA12-vs-ruling reconciliation table (#235 comment 6909545439); the verified
-document and its change records land here when that check completes.
+The law, versioned. Current state: **FROZEN by owner word 2026-11-19.** The
+frozen text is `docs/constitution-v0.6.8.txt` with SHA-256
+`e758008c0cf69c5ef58e147b98fcb845a6953aa52df679717a686b4bf34acbf2`.
 
-Nothing in this directory is frozen until the owner says so in one explicit
-motion. The freeze gates live residents with permanent death.
+Freeze is not launch. No live residents are active, no launch is authorized,
+and the remaining technical and owner decisions are tracked on ForgeClaw
+issue #235. Do not edit the frozen constitution text in a status correction.

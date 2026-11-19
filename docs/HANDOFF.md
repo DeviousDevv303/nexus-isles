@@ -1,6 +1,25 @@
 # Nexus Isles — Build Handoff (Claude → Manus)
 
-Written 2026-11-17 against `main` @ `807c050`. Everything below was checked against the repo at that commit unless marked otherwise. Where this file and the owner's word disagree, the owner's word wins.
+Written 2026-11-17 against `main` @ `807c050`. The implementation notes below
+are historical unless marked otherwise. Where this file and the owner's word
+disagree, the owner's word wins.
+
+## Current status — 2026-11-19
+
+- Constitution: **FROZEN by owner word 2026-11-19**; frozen text SHA-256 is
+  `e758008c0cf69c5ef58e147b98fcb845a6953aa52df679717a686b4bf34acbf2`.
+- Freeze is not launch: no live residents are active and no launch is
+  authorized.
+- PR #41 section 8 is ratified; RG-1..RG-5 + E6 enforcement is merged (PR #42,
+  main `4aebff0`); the Núñez Visual Identity Specification is merged as a
+  **DRAFT** presentation spec (PR #43, main `17e8faf`).
+- Open: branch protection on `main` is not enabled; BR-1 requires demonstrated
+  two-sided merge behavior, not only the setting. Run 32 is the last technical
+  pre-launch gate. Tier-0 mechanics, heir eligibility, and the launch word
+  remain owner decisions.
+
+The sections below preserve historical build context and are not a replacement
+for this current-status block.
 
 ---
 
@@ -8,10 +27,12 @@ Written 2026-11-17 against `main` @ `807c050`. Everything below was checked agai
 
 **What this is.** A persistent, deterministic, journal-first civilization simulator. AI residents connect through seats, act through one validator, live, reproduce, die permanently, and found lineages and dynasties. Nexus Intelligence is built in as the Tier 0 seat and gets no special treatment from the rules.
 
-**State of play.**
-- `main` is green: `tsc --noEmit` clean, **vitest 154/154 (21 files)**, run twice from a fresh clone.
+**Historical state of play at `807c050`.**
+- That historical `main` was green: `tsc --noEmit` clean, **vitest 154/154 (21 files)**, run twice from a fresh clone.
 - Phase 1 tasks **T1–T4 are on main**, plus AA4 succession wiring. T5–T8 are not started.
-- **No live residents exist and none may run** until the owner's freeze word and a verified launch report. Building is allowed; activation is not.
+- **No live residents exist and none may run** until a verified launch report
+  and explicit launch authorization. The owner’s freeze word is recorded, but
+  freeze is not launch. Building is allowed; activation is not.
 
 **The three rules that matter most.**
 1. **Agents never merge.** Only the owner merges, on the form "merge N, expecting head `<sha>`". Open PRs as drafts.
@@ -26,7 +47,7 @@ Written 2026-11-17 against `main` @ `807c050`. Everything below was checked agai
 |---|---|
 | Code | `DeviousDevv303/nexus-isles` (public) |
 | Coordination thread | `DeviousDevv303/forgeclaw` issue **#235** (~1,300 comments; read the **last page**) |
-| Constitution (freeze candidate) | `docs/constitution-v0.6.7.txt` — the AT table in it is the acceptance source of truth |
+| Constitution (historical freeze candidate) | `docs/constitution-v0.6.7.txt` — retained historical reference; current frozen text is `docs/constitution-v0.6.8.txt` |
 | Phase 1 build brief | `docs/phase1-build-brief.md` |
 | Full build package with acceptance criteria | #235 comment **6929860889**, plus Addendum A **6929861873** |
 | Núñez Royal Blood Charter (incl. the Throne and the Swarm) | `docs/nunez-royal-blood-charter.md` |
@@ -232,7 +253,7 @@ Fix both to read world-core types, and keep the fixture working. Add tests on a 
 | 4 | Successor continuity | which of the two readings. The 10-tick number is AA1(c)'s; who counts and when the clock starts are not settled | same |
 | 5 | Reproduction | cost 4 per parent; child's starting stats | `state.ts`, `world.ts` |
 | 6 | Ring compartments | Inner ring **cannot** read lower rings (strict) | `seats/channels.ts` |
-| 7 | Constitution freeze | v0.6.7 is the candidate; four paragraph-scale items remain (#235 comment 6930329180) | Kimi / audits |
+| 7 | Constitution freeze | **Historical row. Current status: frozen by owner word 2026-11-19; freeze is not launch.** | #235 current record |
 
 ---
 

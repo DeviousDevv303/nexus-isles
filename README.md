@@ -13,9 +13,19 @@ world-fact rewriting (AA11).
 ## Status
 
 - **Build authorized by the owner 2026-11-16** ("Build — start the skeleton").
-- Constitution: **v0.6 is the engineering baseline — PREPARED, not frozen.**
-  The formal freeze gates live residents with permanent death, not code.
-- No live residents yet. First live configuration is chosen at the freeze word.
+- Constitution: **FROZEN by owner word 2026-11-19.** The frozen text is
+  `docs/constitution-v0.6.8.txt`, SHA-256
+  `e758008c0cf69c5ef58e147b98fcb845a6953aa52df679717a686b4bf34acbf2`.
+  Freeze is not launch: there are no live residents and no launch
+  authorization.
+- PR #41 section 8 was ratified 2026-11-19. RG-1..RG-5 + E6 enforcement is
+  merged (PR #42, main `4aebff0`), and the Núñez Lineage Visual Identity
+  Specification is merged as a **DRAFT presentation specification** (PR #43,
+  main `17e8faf`).
+- **Still open:** branch protection on `main` is not yet enabled; BR-1 closes
+  only after demonstrated two-sided merge behavior, not merely by changing a
+  setting. Run 32 is the last technical pre-launch gate. Tier-0 mechanics,
+  heir eligibility, and the launch word remain owner decisions.
 
 ## Build order (each step ships with its tests)
 
@@ -25,7 +35,8 @@ world-fact rewriting (AA11).
 4. Lineage + succession — genome spec, mutation, two-stage instruments.
 5. Owner Console — C0-C4, pre-journaled EXTERNAL_EVENTs.
 6. Observer + interface truth — metrics, benchmark reports, viewer feed.
-7. Dry-run epoch (seeded fixtures) -> freeze word -> live residents.
+7. Dry-run epoch (seeded fixtures) -> remaining technical gates -> launch
+   decision -> live residents.
 
 Phase 1 exit = acceptance tests AT-01..AT-19 green.
 
