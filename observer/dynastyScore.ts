@@ -214,6 +214,36 @@ function computeScore(
     byLineage.set(lineageId, axes);
   }
 
+  const scores = scoreAxes(activeLineages, byLineage);
+
+  return {
+    version: DYNASTY_SCORE_VERSION,
+    epochId,
+    startTick: opened.startTick,
+    endTick,
+    resolvedTicks,
+    normalizationPopulation: "active-lineages-at-epoch-close",
+    evidenceClass: "verified-journal",
+    sourceJournalHead,
+    activeLineages,
+    excludedEvidence: [
+      "accepted/rejected action proposals do not count as world outcomes",
+      "external-event free text does not establish score evidence",
+      "predictions, UI state, and off-ledger tallies are never read",
+    ],
+    scores,
+  };
+}
+
+/**
+ * Annex B steps 1-3 over per-lineage axis evidence: normalize by the maximum
+ * (E7), diminish by square root, and combine with E6 abeyance and F-01's
+ * quantities. Pure: the same evidence always gives the same scores.
+ */
+export function scoreAxes(
+  activeLineages: readonly string[],
+  byLineage: ReadonlyMap<string, Record<DynastyScoreAxis, AxisEvidence>>,
+): LineageDynastyScore[] {
   const normalizedByAxis = new Map<DynastyScoreAxis, Map<string, AxisEvidence>>();
   for (const axis of AXES) {
     const availableValues = activeLineages
@@ -227,8 +257,11 @@ function computeScore(
         values.set(lineageId, evidence);
         continue;
       }
-      // When all known raw values are zero, the available axis is a real zero,
-      // not missing evidence; its normalized score is zero for every lineage.
+      // E8 (zero means zero): presence is a measurement fact. A measured axis
+      // stays available even when every lineage measured 0; each normalized
+      // value is then 0 (E7's value/max has no maximum to divide by), and the
+      // axis's full weight still counts toward coverage. Only unmeasured
+      // evidence is MISSING (E6 abeyance).
       const normalizedValue = maxRaw === 0 ? 0 : evidence.rawValue / maxRaw;
       values.set(lineageId, {
         ...evidence,
@@ -239,7 +272,7 @@ function computeScore(
     normalizedByAxis.set(axis, values);
   }
 
-  const scores = activeLineages.map((lineageId): LineageDynastyScore => {
+  return activeLineages.map((lineageId): LineageDynastyScore => {
     const axes = Object.fromEntries(AXES.map((axis) => [axis, normalizedByAxis.get(axis)!.get(lineageId)!])) as Record<DynastyScoreAxis, AxisEvidence>;
     const availableAxes = AXES.filter((axis) => axes[axis].status === "available");
     const coverage = availableAxes.reduce((sum, axis) => sum + DYNASTY_SCORE_WEIGHTS[axis], 0);
@@ -259,24 +292,6 @@ function computeScore(
       status: coverage === 0 ? "missing" : availableAxes.length === AXES.length ? "complete" : "partial",
     };
   });
-
-  return {
-    version: DYNASTY_SCORE_VERSION,
-    epochId,
-    startTick: opened.startTick,
-    endTick,
-    resolvedTicks,
-    normalizationPopulation: "active-lineages-at-epoch-close",
-    evidenceClass: "verified-journal",
-    sourceJournalHead,
-    activeLineages,
-    excludedEvidence: [
-      "accepted/rejected action proposals do not count as world outcomes",
-      "external-event free text does not establish score evidence",
-      "predictions, UI state, and off-ledger tallies are never read",
-    ],
-    scores,
-  };
 }
 
 /** Derive a score from a verified journal only; this observer never mutates the world or journal. */
