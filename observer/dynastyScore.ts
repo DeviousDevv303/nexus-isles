@@ -4,8 +4,8 @@
 // and missing axes; no cross-coverage ranking is implied.
 // keep absent evidence MISSING and exclude proposals, predictions, UI, and
 // off-ledger tallies. Territory-years remains owner-RESERVED. Successor
-// continuity uses the named succession-v0 reading from validated journal
-// records; artifacts and wealth remain MISSING until their evidence schemas
+// continuity uses the named PROVISIONAL succession-v0 reading from validated
+// journal records; artifacts and wealth remain MISSING until their evidence schemas
 // exist. No score behavior is changed outside this observer.
 
 import { Journal, type JournalEntry } from "../ledger/journal.js";
@@ -107,7 +107,7 @@ function openPayload(journal: Journal, epoch: DynastyScoreEpoch): DynastyScoreEp
     activeLineagesAtOpen: [...entities.civilization.activeLineages],
     axisDefinitions: DYNASTY_SCORE_AXIS_DEFINITIONS,
     unresolvedInterpretations: [
-      "successor continuity uses the succession-v0 reading: accepted in-lineage successors after 10 own-agency ticks",
+      "successor continuity uses the PROVISIONAL succession-v0 reading: accepted in-lineage successors after 10 own-agency ticks; the heir-eligibility reading remains unratified (registry: dynasty-score-v1-axes)",
       "territory-years is owner-reserved and has no definition in this contract",
       "verified artifacts remains MISSING until third-party citation/use records exist",
       "wealth-resilience remains MISSING until income-source, upkeep, and productive-deployment records exist",

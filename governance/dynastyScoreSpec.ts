@@ -2,11 +2,14 @@
 // contract. Key decision: seal weights, axes, normalization, and tick
 // conventions for pure journal projection so future code cannot silently
 // reinterpret history. Territory evidence remains owner-RESERVED. The
-// observer names the succession-v0 reading when journal evidence exists.
+// observer implements successor continuity under the named succession-v0
+// reading when journal evidence exists; that reading is PROVISIONAL (below).
 // Weights and version: RATIFIED (registry: dynasty-score-v1; owner ruling 6937295727).
 // PROVISIONAL — owner-ratification item (registry: dynasty-score-v1-axes): the
-// wealth subweights remain unratified; the observer does not infer them without
-// journal-backed income, upkeep, and productive-deployment records.
+// axis definitions carry unratified readings (heir eligibility — implemented
+// as the named succession-v0 reading — and wealth subweights); the observer
+// does not infer wealth without journal-backed income, upkeep, and
+// productive-deployment records.
 
 export const DYNASTY_SCORE_VERSION = "dynasty-score-v1" as const;
 
