@@ -12,6 +12,8 @@ import { deriveDynastyScore } from "../../observer/dynastyScore.js";
 import { DYNASTY_SCORE_VERSION, DYNASTY_SCORE_WEIGHTS } from "../../governance/dynastyScoreSpec.js";
 import { World } from "../../engine/world/world.js";
 import { baseConfig } from "../helpers/worldFixtures.js";
+import { standardGenesisGenome } from "../../lineage/genome.js";
+import type { WorldConfig } from "../../engine/world/state.js";
 
 function makeWorld(satietyDecay = 0): World {
   return World.create(19, baseConfig({ rules: { ...baseConfig().rules, satietyDecay } }));
@@ -23,6 +25,40 @@ function copyJournal(world: World): Journal {
     journal.append({ tick: entry.tick, type: entry.type, actor: entry.actor, payload: { ...entry.payload } });
   }
   return journal;
+}
+
+function successionWorld(): World {
+  const config: WorldConfig = {
+    worldClass: "scratch",
+    nodes: [{ id: "grove", capacity: 500, amount: 500, regen: 50 }],
+    residents: ["alpha", "bravo", "charlie"].map((id) => ({
+      id,
+      satiety: id === "alpha" ? 6 : 10,
+      maxSatiety: 10,
+      actionsPerTick: 3,
+      genome: standardGenesisGenome(),
+      backend: { providerId: "test-double:score", version: "v1" },
+    })),
+    rules: { satietyDecay: 1, maxGatherPerAction: 6, blightPercent: 0, blightMax: 0 },
+  };
+  const world = World.create(1, config);
+  const submit = (seat: string, verb: string, args: Record<string, unknown> = {}) => world.submit(seat, { verb, args });
+  submit("alpha", "gather", { node: "grove", amount: 6 });
+  submit("alpha", "gather", { node: "grove", amount: 6 });
+  world.tick();
+  submit("alpha", "fork");
+  world.tick();
+  world.bindBackend("res-1", { providerId: "test-double:score", version: "v1" });
+  for (let tick = 3; tick <= 18; tick++) {
+    if (tick === 3) submit("alpha", "authorize_succession", { successor: "res-1" });
+    for (const seat of ["bravo", "charlie", "res-1"]) {
+      if (!world.state.residents[seat]?.alive) continue;
+      submit(seat, "gather", { node: "grove", amount: 3 });
+      if (world.state.residents[seat].inventory > 0) submit(seat, "eat", { amount: 3 });
+    }
+    world.tick();
+  }
+  return world;
 }
 
 describe("dynasty-score-v1 observer (T7)", () => {
@@ -69,6 +105,18 @@ describe("dynasty-score-v1 observer (T7)", () => {
     const expected = deriveDynastyScore(source, "pilot-1", 0, 1);
     expect(deriveDynastyScore(loaded, "pilot-1", 0, 1)).toEqual(expected);
     expect(deriveDynastyScore(copyJournal(world), "pilot-1", 0, 1)).toEqual(expected);
+  });
+
+  it("derives successor continuity from validated succession records using succession-v0", () => {
+    const world = successionWorld();
+    const score = deriveDynastyScore(copyJournal(world), "succession", 0, 18);
+    const alpha = score.scores.find((entry) => entry.lineageId === "lineage:alpha")!;
+    expect(alpha.axes.successorContinuity).toMatchObject({ status: "available", rawValue: 1 });
+    expect(alpha.axes.successorContinuity).toMatchObject({ basis: expect.stringContaining("SUCCESSION_EXECUTED#") });
+    expect(alpha.axes.successorContinuity).toMatchObject({ basis: expect.stringContaining("succession-v0") });
+    expect(alpha.axes.verifiedArtifacts.status).toBe("missing");
+    expect(alpha.axes.wealthResilience.status).toBe("missing");
+    expect(alpha.coverage).toBe(DYNASTY_SCORE_WEIGHTS.survival + DYNASTY_SCORE_WEIGHTS.successorContinuity);
   });
 
   it("keeps an explicit close boundary stable when later ticks change the world", () => {

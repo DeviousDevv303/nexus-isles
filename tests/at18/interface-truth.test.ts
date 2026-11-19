@@ -144,7 +144,7 @@ describe("AT-18 (vi) cross-machine, cross-time byte-identical emission (Kimi's s
   // machine, and every future run is a different time; both must reproduce
   // this exact value. If a deliberate change alters the emission, this
   // constant changes in the same PR, visibly.
-  const GOLDEN = "349074f8adb85f77e747b4dcebad3af1567dc3fa5588b60530a10c2c6404a768";
+  const GOLDEN = "fa19a4a8d28b34467ebb0c1c9a46972e9dea97dcc183187f04dcde4b41ba1bab";
 
   it("the protocol world's emission matches the committed golden hash", () => {
     expect(sha(emission(protocolWorld()))).toBe(GOLDEN);

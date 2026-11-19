@@ -1,12 +1,12 @@
 // Directive T7 (Issue #235): version-pinned dynasty-score-v1 observer
 // contract. Key decision: seal weights, axes, normalization, and tick
 // conventions for pure journal projection so future code cannot silently
-// reinterpret history. Unfinished: territory evidence remains MISSING and
-// successor continuity remains held for the owner's E6 audit; this spec does
-// not ratify those interpretations or add scoring behavior.
+// reinterpret history. Territory evidence remains owner-RESERVED. The
+// observer names the succession-v0 reading when journal evidence exists.
 // Weights and version: RATIFIED (registry: dynasty-score-v1; owner ruling 6937295727).
-// PROVISIONAL — owner-ratification item (registry: dynasty-score-v1-axes): the axis
-// definitions carry unratified readings (heir eligibility, wealth subweights).
+// PROVISIONAL — owner-ratification item (registry: dynasty-score-v1-axes): the
+// wealth subweights remain unratified; the observer does not infer them without
+// journal-backed income, upkeep, and productive-deployment records.
 
 export const DYNASTY_SCORE_VERSION = "dynasty-score-v1" as const;
 

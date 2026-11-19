@@ -3,11 +3,13 @@
 // every emission reports coverage, observed weighted average, weighted subtotal,
 // and missing axes; no cross-coverage ranking is implied.
 // keep absent evidence MISSING and exclude proposals, predictions, UI, and
-// off-ledger tallies. Unfinished: territory-years remains MISSING, successor
-// continuity is held for the owner's E6 audit, and artifacts/wealth lack
-// evidence schemas. No score behavior is changed by the T7 mainline update.
+// off-ledger tallies. Territory-years remains owner-RESERVED. Successor
+// continuity uses the named succession-v0 reading from validated journal
+// records; artifacts and wealth remain MISSING until their evidence schemas
+// exist. No score behavior is changed outside this observer.
 
 import { Journal, type JournalEntry } from "../ledger/journal.js";
+import { continuitySuccessors } from "../lineage/entities.js";
 import { deriveVerifiedEntities } from "../lineage/verifiedEntities.js";
 import {
   DYNASTY_SCORE_AXIS_DEFINITIONS,
@@ -105,7 +107,7 @@ function openPayload(journal: Journal, epoch: DynastyScoreEpoch): DynastyScoreEp
     activeLineagesAtOpen: [...entities.civilization.activeLineages],
     axisDefinitions: DYNASTY_SCORE_AXIS_DEFINITIONS,
     unresolvedInterpretations: [
-      "successor continuity remains MISSING until the owner selects the heir and own-agency clock reading",
+      "successor continuity uses the succession-v0 reading: accepted in-lineage successors after 10 own-agency ticks",
       "territory-years is owner-reserved and has no definition in this contract",
       "verified artifacts remains MISSING until third-party citation/use records exist",
       "wealth-resilience remains MISSING until income-source, upkeep, and productive-deployment records exist",
@@ -164,6 +166,11 @@ function computeScore(
     .map((lineage) => lineage.id)
     .sort();
 
+  // A continuity axis is measurable only when the verified journal contains
+  // at least one accepted succession. Once the axis is measurable, a lineage
+  // with no qualifying successor is a measured zero (E8), not missing data.
+  const hasSuccessionEvidence = entities.successions.length > 0;
+
   const byLineage = new Map<string, Record<DynastyScoreAxis, AxisEvidence>>();
   for (const lineageId of activeLineages) {
     const lineage = entities.lineages[lineageId];
@@ -185,7 +192,23 @@ function computeScore(
         : missing("epoch-has-no-resolved-ticks"),
       territoryYears: missing("owner-reserved; no territory definition is authorized"),
       verifiedArtifacts: missing("no-validated-third-party-citation-or-use-events"),
-      successorContinuity: missing("owner-ruling-required-for-heir-and-own-agency-clock-reading"),
+      successorContinuity: hasSuccessionEvidence
+        ? available(
+            continuitySuccessors(entities, lineageId, endTick).length,
+            (() => {
+              const qualifying = entities.successions.filter(
+                (succession) =>
+                  succession.successor in entities.residents &&
+                  entities.residents[succession.deceased]?.lineage === lineageId &&
+                  continuitySuccessors(entities, lineageId, endTick).includes(succession.successor),
+              );
+              const refs = qualifying.map((succession) => `SUCCESSION_EXECUTED#${succession.journalIndex}`);
+              return refs.length > 0
+                ? `succession-v0; ${refs.join(", ")}; validated SUCCESSION_AUTHORIZED and DEATH precede each execution`
+                : "succession-v0; validated SUCCESSION_EXECUTED records exist, but none qualify for this lineage at the scoring tick";
+            })(),
+          )
+        : missing("no validated SUCCESSION_EXECUTED records in the journal"),
       wealthResilience: missing("no-validated-income-source-upkeep-or-productive-deployment-events"),
     } satisfies Record<DynastyScoreAxis, AxisEvidence>;
     byLineage.set(lineageId, axes);
