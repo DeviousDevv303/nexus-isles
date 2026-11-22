@@ -2,11 +2,20 @@
 
 Infrastructure only: it creates or resumes a world in a data directory and
 keeps it ticking through the existing seat driver and world pipeline. It
-changes no engine law and adds no journal event kinds. Two backends are
+changes no engine law and adds no journal event kinds. Three backends are
 registered in `runner/backends.ts` in code: the scripted test double,
-honestly labelled (`test-double:scripted-policy`), and the real Nexus
-adapter (below). A config file can name a provider, but an unregistered
-provider is a refusal to start, never an improvisation.
+honestly labelled (`test-double:scripted-policy`, scratch worlds only);
+the same survival policy under its production identity
+(`scripted-policy:survival`), which is how the decided first-live roster's
+scripted-policy residents are seated in a persistent world; and the real
+Nexus adapter (below). A config file can name a provider, but an
+unregistered provider is a refusal to start, never an improvisation.
+
+`runner/genesis.live.example.json` expresses the decided first-live shape
+— a persistent Juarez world seating Nexus (`nexus:run25-local`) plus two
+`scripted-policy:survival` residents. It is an example: the launch seed,
+exact roster and starting values are set in the real genesis config at
+launch time, under the owner's launch word. This file authorizes nothing.
 
 ## Launch a world
 
