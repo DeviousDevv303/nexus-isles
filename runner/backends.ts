@@ -6,11 +6,13 @@
 // registered for it the runner refuses to start rather than improvise one.
 //
 // The registry ships with the deterministic scripted TEST DOUBLE from
-// seats/driver.ts, honestly labelled "test-double:scripted-policy", and
-// the real Nexus adapter (runner/nexusBackend.ts), labelled with the
-// checkpoint it actually serves. A backend registers by adding a factory
-// to this map in code; its providerId and version are then journaled on
-// every action by the engine (AT-20).
+// seats/driver.ts, honestly labelled "test-double:scripted-policy", the
+// production scripted-policy registration for the decided first-live
+// roster (SCRIPTED_SURVIVAL_REF, below), and the real Nexus adapter
+// (runner/nexusBackend.ts), labelled with the checkpoint it actually
+// serves. A backend registers by adding a factory to this map in code; its
+// providerId and version are then journaled on every action by the engine
+// (AT-20).
 
 import { ScriptedPolicyBackend, type SeatBackend } from "../seats/driver.js";
 import type { Action, Observation } from "../seats/seatProvider.js";
@@ -52,8 +54,22 @@ export function survivalPolicy(input: { observation: Observation }): readonly Ac
   return [];
 }
 
+/**
+ * The production identity of the scripted survival policy, for worlds that
+ * seat scripted-policy residents as REAL residents (the owner's decided
+ * first-live roster: Nexus + two scripted-policy residents in a persistent
+ * world). It runs the exact policy the test double runs; only the identity
+ * differs, and the difference is the point — a persistent world refuses the
+ * "test-double:" prefix at genesis and at bind time, so before this
+ * registration the decided roster could not be instantiated at all. The
+ * label claims nothing the code does not do: a deterministic scripted
+ * policy, journaled under its own name on every action (AT-20).
+ */
+export const SCRIPTED_SURVIVAL_REF = { providerId: "scripted-policy:survival", version: "v1" } as const;
+
 export const BUILTIN_BACKEND_FACTORIES: Readonly<Record<string, BackendFactory>> = {
   "test-double:scripted-policy": () => new ScriptedPolicyBackend(survivalPolicy),
+  [SCRIPTED_SURVIVAL_REF.providerId]: () => new ScriptedPolicyBackend(survivalPolicy, SCRIPTED_SURVIVAL_REF),
   // The real Nexus adapter: Cristian's own LLM, the seated Run 25
   // checkpoint, served by the Python sidecar in runner/nexusBackend.ts.
   // The sidecar process is spawned lazily on the first propose() and the

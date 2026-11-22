@@ -47,14 +47,28 @@ function fallbackProvenance(input: {
   };
 }
 
-/** Deterministic TEST DOUBLE. Never label this provider as Nexus or a model. */
+/**
+ * Deterministic scripted-policy backend. Its identity is the ref it is
+ * constructed with: the DEFAULT ref is the labeled test double
+ * ("test-double:scripted-policy"), which non-scratch worlds refuse. A
+ * deployment that runs a scripted policy as a real resident (the decided
+ * first-live roster's scripted-policy residents) constructs it with that
+ * deployment's own honest ref instead — the journal then records exactly
+ * the scripted policy that drove the seat. Never label this provider as
+ * Nexus or a model, whatever ref it carries.
+ */
 export class ScriptedPolicyBackend implements SeatBackend {
-  readonly ref = { providerId: "test-double:scripted-policy", version: "test-v1" } as const;
+  readonly ref: BackendRef;
 
-  constructor(private readonly policy: (input: {
-    observation: Observation;
-    directives: readonly DriverDirective[];
-  }) => readonly Action[]) {}
+  constructor(
+    private readonly policy: (input: {
+      observation: Observation;
+      directives: readonly DriverDirective[];
+    }) => readonly Action[],
+    ref: BackendRef = { providerId: "test-double:scripted-policy", version: "test-v1" },
+  ) {
+    this.ref = ref;
+  }
 
   propose(input: {
     observation: Observation;
