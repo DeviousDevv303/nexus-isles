@@ -185,6 +185,44 @@
           }
         }
       ]
+    },
+    {
+      "tick": 35,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "move",
+          "args": {
+            "to": "el-paso-downtown"
+          }
+        },
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        }
+      ]
+    },
+    {
+      "tick": null,
+      "standing": true,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "el-paso-depot",
+            "amount": 4
+          }
+        }
+      ]
     }
   ]
 }
