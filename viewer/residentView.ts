@@ -74,6 +74,124 @@ export function ordersRequestBody(seat: string, text: string, tick: number): Ord
   return { seat, entry: composeOwnerOrder(text, tick) };
 }
 
+/** One engine action in an owner action entry: a verb and its arguments. */
+export interface ActionOrder {
+  verb: string;
+  args: Record<string, unknown>;
+}
+
+/**
+ * An owner order entry carrying pre-composed engine actions instead of
+ * a directive: the gameplay composer's product. Same seat-orders schema
+ * (pinned here, cross-checked against the real parser in tests); the
+ * runner proposes exactly these actions through the seat driver, and
+ * the validator — not this page — decides each one at resolution.
+ */
+export interface OwnerActionEntry {
+  tick: number;
+  operator: "owner";
+  orders: ActionOrder[];
+}
+
+export function composeActionOrder(orders: ActionOrder[], tick: number): OwnerActionEntry {
+  return { tick, operator: "owner", orders };
+}
+
+export function actionOrdersRequestBody(
+  seat: string,
+  orders: ActionOrder[],
+  tick: number,
+): { seat: string; entry: OwnerActionEntry } {
+  return { seat, entry: composeActionOrder(orders, tick) };
+}
+
+/** The journaled outcome of one tick's actions for a resident. */
+export interface OrderTickOutcome {
+  tick: number;
+  accepted: { verb: string; args: Record<string, unknown> }[];
+  rejected: { verb: string; args: Record<string, unknown>; reason: string }[];
+}
+
+/**
+ * Per-tick action outcomes for a resident, derived from the journal's
+ * ACTION_ACCEPTED / ACTION_REJECTED entries (the engine's own verdicts,
+ * journaled at resolution) — newest tick first. This is the ONLY source
+ * the page may use to call an order accepted or rejected: a relay
+ * "recorded" is not an outcome, and nothing here is inferred from the
+ * orders file or the request that sent it.
+ */
+export function orderOutcomesFromJournal(
+  entries: readonly JournalEntry[],
+  residentId: string,
+  limit = 3,
+): OrderTickOutcome[] {
+  const byTick = new Map<number, OrderTickOutcome>();
+  for (const e of entries) {
+    if (e.type !== "ACTION_ACCEPTED" && e.type !== "ACTION_REJECTED") continue;
+    if (e.payload.seat !== residentId && e.actor !== residentId) continue;
+    let outcome = byTick.get(e.tick);
+    if (!outcome) {
+      outcome = { tick: e.tick, accepted: [], rejected: [] };
+      byTick.set(e.tick, outcome);
+    }
+    const item = {
+      verb: typeof e.payload.verb === "string" ? e.payload.verb : "?",
+      args: (e.payload.args ?? {}) as Record<string, unknown>,
+    };
+    if (e.type === "ACTION_ACCEPTED") outcome.accepted.push(item);
+    else outcome.rejected.push({ ...item, reason: typeof e.payload.reason === "string" ? e.payload.reason : "rejected" });
+  }
+  return [...byTick.values()].sort((a, b) => b.tick - a.tick).slice(0, limit);
+}
+
+/**
+ * What the action composer may offer, derived from committed state at
+ * the journal head: the nodes in the resident's own region (gather
+ * validates where he stands), the regions one edge away (move validates
+ * adjacency), his per-tick action budget, and the gather cap. Nothing
+ * beyond his position is offered, and the validator still has the last
+ * word on every composed action at resolution.
+ */
+export interface OrderComposerModel {
+  nextTick: number;
+  actionsPerTick: number;
+  inventory: number;
+  maxGatherPerAction: number;
+  nodesHere: { id: string; amount: number }[];
+  exits: { id: string; name: string }[];
+}
+
+export function composerModelFromState(
+  state: WorldState,
+  residentId: string,
+  nextTick: number,
+): OrderComposerModel | null {
+  const resident = state.residents[residentId];
+  if (!resident || !resident.alive || !resident.position) return null;
+  const nodesHere = Object.entries(state.nodes)
+    .filter(([, n]) => n.region === resident.position)
+    .map(([id, n]) => ({ id, amount: n.amount }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  const exitIds = new Set<string>();
+  if (state.map) {
+    for (const e of state.map.edges) {
+      if (e.a === resident.position) exitIds.add(e.b);
+      else if (e.b === resident.position) exitIds.add(e.a);
+    }
+  }
+  const exits = [...exitIds]
+    .map((id) => ({ id, name: state.map?.regions.find((r) => r.id === id)?.name ?? id }))
+    .sort((a, b) => (a.id < b.id ? -1 : 1));
+  return {
+    nextTick,
+    actionsPerTick: resident.actionsPerTick,
+    inventory: resident.inventory,
+    maxGatherPerAction: state.rules.maxGatherPerAction,
+    nodesHere,
+    exits,
+  };
+}
+
 export interface ResidentJournalNote {
   index: number;
   tick: number;
@@ -241,7 +359,10 @@ function esc(s: string): string {
  * targets `nextTick` — the next tick the world will resolve — because an
  * order can only land in a tick that has not resolved yet (AA9).
  */
-export function renderResidentViewHtml(view: ResidentView, opts: { nextTick: number }): string {
+export function renderResidentViewHtml(
+  view: ResidentView,
+  opts: { nextTick: number; composer?: OrderComposerModel | null; outcomes?: OrderTickOutcome[] },
+): string {
   const parts: string[] = [];
   parts.push(`<section class="resident-view" id="resident-view" aria-label="Resident's view">`);
   parts.push(`<div class="resident-label">${esc(RESIDENT_LABEL)}</div>`);
@@ -255,10 +376,14 @@ export function renderResidentViewHtml(view: ResidentView, opts: { nextTick: num
     parts.push(
       `<p>Founded at tick ${view.foundingTick} · lineage <span class="hash">${esc(view.lineage ?? "")}</span> · ` +
         `${view.alive ? "alive" : "dead"} · at ${esc(view.positionName ?? "—")} (${esc(view.position ?? "—")}) · ` +
-        `satiety ${view.satiety}/${view.maxSatiety} · inventory ${view.inventory}</p>`,
+        `satiety ${view.satiety}/${view.maxSatiety} · inventory ${view.inventory} ` +
+        `<span class="ev-chip">DERIVED · committed state, replayed from the journal</span></p>`,
     );
     if (view.observation) {
-      parts.push(`<h3>Latest delivered observation — tick ${view.observation.tick}</h3>`);
+      parts.push(
+        `<h3>Latest delivered observation — tick ${view.observation.tick} ` +
+          `<span class="ev-chip">OBSERVED · delivered to the resident at that tick</span></h3>`,
+      );
       parts.push(
         `<p class="meta">Mid-tick intelligence the engine delivered to the resident at that tick — ` +
           `a different register from the committed state above.</p>`,
@@ -292,47 +417,189 @@ export function renderResidentViewHtml(view: ResidentView, opts: { nextTick: num
       );
     }
   }
+  if (opts.outcomes && opts.outcomes.length > 0) {
+    parts.push(`<h3>Engine outcomes — what the journal says your orders did</h3>`);
+    parts.push(
+      `<p class="meta">Read from the journal's ACTION_ACCEPTED / ACTION_REJECTED entries — the ` +
+        `engine's verdicts at resolution, not the relay's. <span class="ev-chip">DERIVED · from journaled action entries</span></p>`,
+    );
+    for (const outcome of opts.outcomes) {
+      const accepted = outcome.accepted
+        .map((a) => `${esc(a.verb)} (${esc(JSON.stringify(a.args))})`)
+        .join(" · ");
+      const rejected = outcome.rejected
+        .map((r) => `${esc(r.verb)} — rejected: ${esc(r.reason)}`)
+        .join(" · ");
+      parts.push(
+        `<p>Tick ${outcome.tick} — RESOLVED${accepted ? ` · accepted: ${accepted}` : ""}` +
+          `${rejected ? ` · ${rejected}` : ""}</p>`,
+      );
+    }
+  }
   parts.push(`<h3>Direct your resident</h3>`);
   parts.push(
     `<p class="meta">An order from this box is journaled into the world's orders file as an ` +
       `<strong>owner</strong> entry for tick ${opts.nextTick} and overrides the operator's orders ` +
-      `for that tick. The operator translates your words into the resident's actions.</p>`,
+      `for that tick. Words go as a directive (the operator translates them into actions); ` +
+      `the action composer below sends the actions themselves. Either way the engine's ` +
+      `validator decides at resolution — this page records, it never accepts.</p>`,
   );
   parts.push(
     `<div class="orders-box">` +
+      `<label for="orders-code">Family code — the relay records orders only from the owner. ` +
+      `It is held only in this field, sent to the relay over HTTPS, and never stored by this page.</label>` +
+      `<input id="orders-code" type="password" autocomplete="off" placeholder="Family code">` +
       `<textarea id="orders-text" rows="3" placeholder="Your order for ${esc(view.residentId)} — e.g. gather at the market, then eat"></textarea>` +
       `<button id="orders-send" type="button">Send order for tick ${opts.nextTick}</button>` +
       `<div id="orders-status" class="meta"></div>` +
       `<pre id="orders-composed" class="orders-composed" hidden></pre>` +
       `</div>`,
   );
+  if (opts.composer && view.alive) {
+    const c = opts.composer;
+    const nodeOptions = c.nodesHere
+      .map((n) => `<option value="${esc(n.id)}">${esc(n.id)} · stock ${n.amount}</option>`)
+      .join("");
+    const exitOptions = c.exits
+      .map((e) => `<option value="${esc(e.id)}">${esc(e.name)} (${esc(e.id)})</option>`)
+      .join("");
+    parts.push(
+      `<div class="orders-box action-composer">` +
+        `<h4>Compose actions for tick ${c.nextTick}</h4>` +
+        `<p class="meta">Up to ${c.actionsPerTick} actions — his budget for one tick. Gather takes ` +
+        `from a node where he stands (max ${c.maxGatherPerAction} per action); eat draws on his ` +
+        `inventory (${c.inventory}); move crosses one edge. The validator can still reject any ` +
+        `of these at resolution, in the open, and the outcome panel above will show it.</p>` +
+        `<label>Action <select id="action-verb">` +
+        `<option value="gather">gather</option><option value="eat">eat</option>` +
+        `<option value="move">move</option><option value="wait">wait</option></select></label> ` +
+        `<label>Node <select id="action-node">${nodeOptions}</select></label> ` +
+        `<label>Amount <input id="action-amount" type="number" min="1" max="${c.maxGatherPerAction}" value="${c.maxGatherPerAction}"></label> ` +
+        `<label>Move to <select id="action-exit">${exitOptions}</select></label> ` +
+        `<button id="action-add" type="button">Add action</button>` +
+        `<ul id="action-list"></ul>` +
+        `<button id="actions-send" type="button">Send actions for tick ${c.nextTick}</button>` +
+        `<div id="actions-status" class="meta"></div>` +
+        `</div>`,
+    );
+  }
   parts.push(`<script>
 "use strict";
 const ORDERS_ENDPOINT = ${JSON.stringify(ORDERS_ENDPOINT)};
 const ORDERS_SEAT = ${JSON.stringify(view.residentId)};
 const ORDERS_TICK = ${opts.nextTick};
-document.getElementById("orders-send").addEventListener("click", async () => {
-  const text = document.getElementById("orders-text").value.trim();
-  const status = document.getElementById("orders-status");
+const COMPOSER = ${JSON.stringify(opts.composer ?? null)};
+// The family code lives only in its password field and in this request's
+// header: no storage API is touched anywhere in this script, so closing
+// the page forgets it. The relay — never this page — holds the GitHub
+// token, and it answers for itself: recorded, duplicate, or an error.
+function ordersCode() { return document.getElementById("orders-code").value; }
+async function postOrder(body, status) {
   const composed = document.getElementById("orders-composed");
-  if (!text) { status.textContent = "Write an order first — an empty box sends nothing."; return; }
-  const body = { seat: ORDERS_SEAT, entry: { tick: ORDERS_TICK, operator: "owner", directive: text, orders: [] } };
   composed.hidden = false;
   composed.textContent = JSON.stringify(body, null, 2);
+  const code = ordersCode();
+  if (!code) {
+    status.textContent = "Enter your family code first — the relay records orders only from the owner, and this page never stores the code.";
+    return;
+  }
   status.textContent = "Sending…";
   try {
     const res = await fetch(ORDERS_ENDPOINT + "/seat-orders", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "Authorization": "Bearer " + code },
       body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error("relay answered " + res.status);
-    status.textContent = "Order sent for tick " + ORDERS_TICK + " as an owner entry. It overrides the operator's orders for that tick.";
+    let data = null;
+    try { data = await res.json(); } catch (e) { data = null; }
+    if (res.ok && data && data.status === "recorded") {
+      status.textContent = "Recorded for tick " + body.entry.tick + " as an owner entry — PENDING: the engine resolves it when tick " + body.entry.tick + " runs, and after the next world session publishes, the outcome panel on this page shows the journaled verdict. Recorded is not accepted.";
+    } else if (res.ok && data && data.status === "duplicate") {
+      status.textContent = "Already recorded — an identical entry is already in the orders file, so nothing was appended. To change the order, change the order itself: a correction supersedes; a retry does not.";
+    } else if (res.status === 401) {
+      status.textContent = "FAILED — the relay rejected the family code (401). The order has NOT been recorded.";
+    } else if (res.status === 503) {
+      status.textContent = "FAILED — the relay is not configured for seat orders yet (503). The order has NOT been recorded.";
+    } else {
+      status.textContent = "FAILED — the relay answered " + res.status + ". The order has NOT been recorded. Your composed order is shown below, verbatim, to copy and paste — it is not lost.";
+    }
   } catch (err) {
     status.textContent = "FAILED — the order did not reach the relay (" + (err && err.message ? err.message : String(err)) + "). " +
       "It has NOT been recorded. Your composed order is shown below, verbatim, to copy and paste — it is not lost.";
   }
+}
+document.getElementById("orders-send").addEventListener("click", async () => {
+  const text = document.getElementById("orders-text").value.trim();
+  const status = document.getElementById("orders-status");
+  if (!text) { status.textContent = "Write an order first — an empty box sends nothing."; return; }
+  await postOrder({ seat: ORDERS_SEAT, entry: { tick: ORDERS_TICK, operator: "owner", directive: text, orders: [] } }, status);
 });
+if (COMPOSER) {
+  const chosen = [];
+  const verbSel = document.getElementById("action-verb");
+  const nodeSel = document.getElementById("action-node");
+  const amountIn = document.getElementById("action-amount");
+  const exitSel = document.getElementById("action-exit");
+  const listEl = document.getElementById("action-list");
+  const aStatus = document.getElementById("actions-status");
+  function describe(o) {
+    if (o.verb === "gather") return "gather " + o.args.amount + " · " + o.args.node;
+    if (o.verb === "eat") return "eat " + o.args.amount;
+    if (o.verb === "move") return "move to " + o.args.to;
+    return "wait";
+  }
+  function syncFields() {
+    const v = verbSel.value;
+    nodeSel.disabled = v !== "gather";
+    amountIn.disabled = !(v === "gather" || v === "eat");
+    exitSel.disabled = v !== "move";
+  }
+  function renderChosen() {
+    listEl.innerHTML = "";
+    chosen.forEach((o, i) => {
+      const li = document.createElement("li");
+      li.textContent = describe(o) + " ";
+      const b = document.createElement("button");
+      b.type = "button";
+      b.textContent = "Remove";
+      b.addEventListener("click", () => { chosen.splice(i, 1); renderChosen(); });
+      li.appendChild(b);
+      listEl.appendChild(li);
+    });
+  }
+  verbSel.addEventListener("change", syncFields);
+  syncFields();
+  document.getElementById("action-add").addEventListener("click", () => {
+    if (chosen.length >= COMPOSER.actionsPerTick) {
+      aStatus.textContent = "That is his full budget for one tick (" + COMPOSER.actionsPerTick + " actions). Send these, or remove one.";
+      return;
+    }
+    const v = verbSel.value;
+    const amount = Number(amountIn.value);
+    if (v === "gather") {
+      if (!nodeSel.value) { aStatus.textContent = "No node here to gather from."; return; }
+      if (!Number.isSafeInteger(amount) || amount < 1 || amount > COMPOSER.maxGatherPerAction) {
+        aStatus.textContent = "Gather amount must be a whole number from 1 to " + COMPOSER.maxGatherPerAction + ".";
+        return;
+      }
+      chosen.push({ verb: "gather", args: { node: nodeSel.value, amount: amount } });
+    } else if (v === "eat") {
+      if (!Number.isSafeInteger(amount) || amount < 1) { aStatus.textContent = "Eat amount must be a whole number of at least 1."; return; }
+      chosen.push({ verb: "eat", args: { amount: amount } });
+    } else if (v === "move") {
+      if (!exitSel.value) { aStatus.textContent = "No exit to move through."; return; }
+      chosen.push({ verb: "move", args: { to: exitSel.value } });
+    } else {
+      chosen.push({ verb: "wait", args: {} });
+    }
+    aStatus.textContent = "";
+    renderChosen();
+  });
+  document.getElementById("actions-send").addEventListener("click", async () => {
+    if (!chosen.length) { aStatus.textContent = "Compose at least one action first — an empty list sends nothing."; return; }
+    await postOrder({ seat: ORDERS_SEAT, entry: { tick: ORDERS_TICK, operator: "owner", orders: chosen } }, aStatus);
+  });
+}
 </script>`);
   parts.push(`</section>`);
   return parts.join("\n");

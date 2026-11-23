@@ -14,7 +14,9 @@ import type { JournalEntry } from "../ledger/journal.js";
 import type { VerificationReceipt } from "./verificationReceipt.js";
 import { loadJournalForViewing, type TickFrame } from "./replay.js";
 import {
+  composerModelFromState,
   latestSeatObservationAt,
+  orderOutcomesFromJournal,
   renderResidentViewHtml,
   residentViewFromJournal,
   seatJournalNotesAt,
@@ -149,6 +151,12 @@ export function renderViewerHtml(frames: readonly TickFrame[], opts: RenderOptio
   );
   const residentSection = renderResidentViewHtml(residentView, {
     nextTick: frames[frames.length - 1].tick + 1,
+    composer: composerModelFromState(
+      frames[frames.length - 1].state,
+      RESIDENT_VIEW_SEAT,
+      frames[frames.length - 1].tick + 1,
+    ),
+    outcomes: orderOutcomesFromJournal(journal.entries(), RESIDENT_VIEW_SEAT),
   });
   const entries = journal.entries();
   const finalFrame = frames[frames.length - 1];
@@ -222,6 +230,12 @@ export function renderViewerHtml(frames: readonly TickFrame[], opts: RenderOptio
     border: 1px solid #39434d; border-radius: 4px; padding: 0.5rem; font: inherit; }
   .orders-box button { margin-top: 0.5rem; padding: 0.45rem 0.9rem; font: inherit; cursor: pointer; }
   .orders-composed { background: #0b0f13; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
+  .orders-box input, .orders-box select { background: #0b0f13; color: #e8ecef; border: 1px solid #39434d;
+    border-radius: 4px; padding: 0.35rem 0.5rem; font: inherit; margin: 0.25rem 0; }
+  .orders-box label { display: block; margin: 0.4rem 0 0.2rem; }
+  .action-composer label { display: inline-block; margin-right: 0.6rem; }
+  .ev-chip { display: inline-block; border: 1px solid #2a9db8; color: #8fd8e8; border-radius: 999px;
+    padding: 0.05rem 0.55rem; font-size: 0.72rem; letter-spacing: 0.04em; vertical-align: middle; }
   /* The three surfaces and their tab bar. The tabs only show/hide
      sections; every surface renders from the same embedded frames. */
   .surface-tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 0.5rem;
