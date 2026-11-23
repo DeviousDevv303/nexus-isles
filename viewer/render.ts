@@ -294,6 +294,17 @@ function renderVerification() {
   if (data.verification) {
     const v = data.verification;
     receiptHost.innerHTML = "";
+    // Validate the receipt's own claim fields BEFORE any verdict (GPT PR #54 finding 3 / Kimi T10):
+    // without this, a receipt with { chainVerified: false }, an unknown schema, or a missing/wrong
+    // claimClass but matching head/entries/tick would still render green. Every failure here is
+    // FAIL — the receipt is not usable evidence for this page.
+    const EXPECTED_SCHEMA = "nexus-isles-verification/v1";
+    const EXPECTED_CLAIM_CLASS = "runner-attested";
+    const claimFailures = [];
+    if (v.schema !== EXPECTED_SCHEMA) claimFailures.push("schema: receipt " + JSON.stringify(v.schema) + " is not " + JSON.stringify(EXPECTED_SCHEMA));
+    if (v.claimClass !== EXPECTED_CLAIM_CLASS) claimFailures.push("claimClass: receipt " + JSON.stringify(v.claimClass) + " is not " + JSON.stringify(EXPECTED_CLAIM_CLASS) + " (a receipt may not silently take on a stronger claim class)");
+    if (v.chainVerified !== true) claimFailures.push("chainVerified: receipt reports " + JSON.stringify(v.chainVerified) + " — the verifier did not confirm the chain");
+    if (v.replayStateHashesMatchedAtEveryCommit !== true) claimFailures.push("replayStateHashesMatchedAtEveryCommit: receipt reports " + JSON.stringify(v.replayStateHashesMatchedAtEveryCommit) + " — the verifier did not confirm the replay");
     // Bind the receipt to THIS artifact (GPT finding 1, PR #54): a receipt whose head/entries/tick
     // do not match the embedded replay could still have rendered green beside the wrong replay.
     // Compare, and if any field disagrees, fail closed — never display the receipt as passed.
@@ -307,10 +318,14 @@ function renderVerification() {
     // disclose it; the viewer treats it as INCOMPLETE and refuses green.
     const tornTail = v.sourceTornTail;
     const unterminated = v.sourceUnterminatedFinalEntry;
+    const claimOk = claimFailures.length === 0;
     const bindingOk = mismatches.length === 0;
     const sourceClean = !tornTail;
     const verdict = document.createElement("div");
-    if (!bindingOk) {
+    if (!claimOk) {
+      verdict.className = "verdict fail";
+      verdict.textContent = "FAIL — the receipt itself does not carry the claims a runner-generated receipt must carry. It is not evidence for this page; see the list below.";
+    } else if (!bindingOk) {
       verdict.className = "verdict fail";
       verdict.textContent = "FAIL — the runner-generated receipt does not match this replay artifact. A matching receipt was expected; a receipt from a different world or run is not evidence for this page.";
     } else if (!sourceClean) {
@@ -318,10 +333,16 @@ function renderVerification() {
       verdict.textContent = "INCOMPLETE — runner-generated receipt for this artifact, but the source journal had a torn trailing fragment at load time. The surviving prefix was verified; the discarded bytes were not. See the Source section below.";
     } else {
       verdict.className = "verdict pass";
-      verdict.textContent = "Runner-generated receipt (claim-class: runner-attested) — hash chain intact and replay matched every TICK_COMMIT state hash. The run reference and head below are recorded, but external correspondence between this page and the live journal is not independently established (reproduce below).";
+      // Read claimClass from the receipt rather than hardcoding it: a future schema version may change it,
+      // and a receipt that smuggled a weaker/stronger class in should not inherit this line's wording.
+      verdict.textContent = "Runner-generated receipt (claim-class: " + v.claimClass + ") — hash chain intact and replay matched every TICK_COMMIT state hash. The run reference and head below are recorded, but external correspondence between this page and the live journal is not independently established (reproduce below).";
     }
     receiptHost.appendChild(verdict);
-    if (!bindingOk) {
+    if (!claimOk) {
+      const list = document.createElement("ul");
+      for (const f of claimFailures) { const li = document.createElement("li"); li.textContent = f; list.appendChild(li); }
+      receiptHost.appendChild(list);
+    } else if (!bindingOk) {
       const list = document.createElement("ul");
       for (const m of mismatches) { const li = document.createElement("li"); li.textContent = m; list.appendChild(li); }
       receiptHost.appendChild(list);

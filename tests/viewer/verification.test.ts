@@ -249,7 +249,8 @@ describe("GPT presentation refinement (PR #54): runner-generated receipt wording
   it("labels the green result as a runner-generated receipt, not simply \"Verified by\"", async () => {
     const { journalPath } = await makeWorld();
     const html = render(journalPath, null);  // the branch text is static JS, present either way
-    expect(html).toContain("Runner-generated receipt (claim-class: runner-attested) — hash chain intact and replay matched every TICK_COMMIT state hash.");
+    // The PASS line is now assembled at runtime from v.claimClass; assert the static scaffolding and the static tail.
+    expect(html).toMatch(/"Runner-generated receipt \(claim-class: " \+ v\.claimClass \+ "\) — hash chain intact and replay matched every TICK_COMMIT state hash\./);
     expect(html).toContain("external correspondence between this page and the live journal is not independently established");
   });
 });
@@ -265,6 +266,70 @@ describe("Kimi D-schema continuity (PR #54): claim-class annotation", () => {
   it("the viewer's green verdict names the claim class, so the reader cannot confuse it with a viewer-recomputed result", async () => {
     const { journalPath } = await makeWorld();
     const html = render(journalPath, null);
-    expect(html).toContain("Runner-generated receipt (claim-class: runner-attested)");
+    // The static scaffolding is in the HTML; the runtime concatenation builds the full line from v.claimClass.
+    expect(html).toMatch(/"Runner-generated receipt \(claim-class: " \+ v\.claimClass \+ "\)/);
+  });
+});
+
+// GPT finding F3 (and Kimi tamper case T10, DRAFT v0.1 §3): the browser must validate the
+// receipt's own claim fields — schema, claimClass, chainVerified, and
+// replayStateHashesMatchedAtEveryCommit — and fail closed on any disagreement, even if the
+// receipt's head/entries/tick match the artifact. Without this, a receipt could smuggle a
+// weaker/false claim under matching binding and still render green.
+
+describe("GPT finding F3 / Kimi T10 (PR #54): runtime receipt-claim validation", () => {
+  async function receiptAndRender() {
+    const { journalPath } = await makeWorld();
+    const status = worldStatus(Journal.loadFromFile(journalPath));
+    return { journalPath, receipt: buildReceipt(status, { journalPath }) };
+  }
+
+  it("the HTML carries fail-closed checks for schema, claimClass, chainVerified and replayStateHashesMatchedAtEveryCommit", async () => {
+    const { journalPath } = await makeWorld();
+    const html = render(journalPath, null);
+    expect(html).toMatch(/if \(v\.schema !== EXPECTED_SCHEMA\)/);
+    expect(html).toMatch(/if \(v\.claimClass !== EXPECTED_CLAIM_CLASS\)/);
+    expect(html).toMatch(/if \(v\.chainVerified !== true\)/);
+    expect(html).toMatch(/if \(v\.replayStateHashesMatchedAtEveryCommit !== true\)/);
+    expect(html).toContain('"nexus-isles-verification/v1"');
+    expect(html).toContain('"runner-attested"');
+  });
+
+  it("a receipt with chainVerified:false — but matching head/entries/tick — must FAIL, not render green", async () => {
+    const { journalPath, receipt } = await receiptAndRender();
+    const bogus = { ...receipt, chainVerified: false as unknown as true };
+    const html = render(journalPath, bogus);
+    expect(html).toContain('"chainVerified":false');
+    expect(html).toMatch(/the receipt itself does not carry the claims a runner-generated receipt must carry/);
+    expect(html).toMatch(/chainVerified: receipt reports/);
+  });
+
+  it("a receipt with replayStateHashesMatchedAtEveryCommit:false must FAIL", async () => {
+    const { journalPath, receipt } = await receiptAndRender();
+    const html = render(journalPath, { ...receipt, replayStateHashesMatchedAtEveryCommit: false as unknown as true });
+    expect(html).toContain('"replayStateHashesMatchedAtEveryCommit":false');
+    expect(html).toMatch(/replayStateHashesMatchedAtEveryCommit: receipt reports/);
+  });
+
+  it("a receipt with an unknown schema must FAIL and name the mismatch", async () => {
+    const { journalPath, receipt } = await receiptAndRender();
+    const html = render(journalPath, { ...receipt, schema: "nexus-isles-verification/v99" as "nexus-isles-verification/v1" });
+    expect(html).toContain('"schema":"nexus-isles-verification/v99"');
+    expect(html).toMatch(/schema: receipt /);
+  });
+
+  it("a receipt with a wrong claimClass (viewer-recomputed) must FAIL — the receipt may not silently take on a stronger claim class", async () => {
+    const { journalPath, receipt } = await receiptAndRender();
+    const html = render(journalPath, { ...receipt, claimClass: "viewer-recomputed" as "runner-attested" });
+    expect(html).toContain('"claimClass":"viewer-recomputed"');
+    expect(html).toMatch(/claimClass: receipt /);
+    expect(html).toMatch(/may not silently take on a stronger claim class/);
+  });
+
+  it("the PASS line now reads the receipt's own claimClass, not a hardcoded string", async () => {
+    const { journalPath } = await makeWorld();
+    const html = render(journalPath, null);
+    // The JS source uses v.claimClass in the concatenation, not a literal "runner-attested" inside the template.
+    expect(html).toMatch(/"Runner-generated receipt \(claim-class: " \+ v\.claimClass \+/);
   });
 });
