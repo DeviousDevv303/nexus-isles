@@ -249,7 +249,22 @@ describe("GPT presentation refinement (PR #54): runner-generated receipt wording
   it("labels the green result as a runner-generated receipt, not simply \"Verified by\"", async () => {
     const { journalPath } = await makeWorld();
     const html = render(journalPath, null);  // the branch text is static JS, present either way
-    expect(html).toContain("Runner-generated receipt — hash chain intact and replay matched every TICK_COMMIT state hash.");
+    expect(html).toContain("Runner-generated receipt (claim-class: runner-attested) — hash chain intact and replay matched every TICK_COMMIT state hash.");
     expect(html).toContain("external correspondence between this page and the live journal is not independently established");
+  });
+});
+
+describe("Kimi D-schema continuity (PR #54): claim-class annotation", () => {
+  it("every field in this receipt is explicitly marked as a runner attestation", async () => {
+    const { journalPath } = await makeWorld();
+    const status = worldStatus(Journal.loadFromFile(journalPath));
+    const receipt = buildReceipt(status, { journalPath });
+    expect(receipt.claimClass).toBe("runner-attested");
+  });
+
+  it("the viewer's green verdict names the claim class, so the reader cannot confuse it with a viewer-recomputed result", async () => {
+    const { journalPath } = await makeWorld();
+    const html = render(journalPath, null);
+    expect(html).toContain("Runner-generated receipt (claim-class: runner-attested)");
   });
 });

@@ -318,7 +318,7 @@ function renderVerification() {
       verdict.textContent = "INCOMPLETE — runner-generated receipt for this artifact, but the source journal had a torn trailing fragment at load time. The surviving prefix was verified; the discarded bytes were not. See the Source section below.";
     } else {
       verdict.className = "verdict pass";
-      verdict.textContent = "Runner-generated receipt — hash chain intact and replay matched every TICK_COMMIT state hash. The run reference and head below are recorded, but external correspondence between this page and the live journal is not independently established (reproduce below).";
+      verdict.textContent = "Runner-generated receipt (claim-class: runner-attested) — hash chain intact and replay matched every TICK_COMMIT state hash. The run reference and head below are recorded, but external correspondence between this page and the live journal is not independently established (reproduce below).";
     }
     receiptHost.appendChild(verdict);
     if (!bindingOk) {

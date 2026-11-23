@@ -7,8 +7,21 @@
 // is not allowed. ChatGPT's P1 audit (forgeclaw #235) grounds the shape: the page
 // must not present displayed-matching hashes as verification; it names, instead,
 // who verified, when, and under which run.
+/**
+ * Claim-class annotation (Kimi's D-schema continuity sharpening, 2026-11-23). Every field in this
+ * receipt is a RUNNER ATTESTATION: the runner that built the page says it checked the chain and
+ * replay. It is NOT a viewer-side recomputation. The frozen P1's in-page A/B/C results are a
+ * CATEGORICALLY DIFFERENT claim class (viewer-recomputed) and must therefore carry a different
+ * claimClass marker — reusing a name like `chainVerified` under P1 to mean "browser recomputed"
+ * would strengthen the claim silently. Rename or version then; never let a field's claim class
+ * change under its existing name.
+ */
+export type ReceiptClaimClass = "runner-attested" | "viewer-recomputed" | "witnessed";
+
 export interface VerificationReceipt {
   schema: "nexus-isles-verification/v1";
+  /** Every field in this receipt is a runner attestation; see ReceiptClaimClass. */
+  claimClass: "runner-attested";
   verifiedAt: string;
   head: string;
   entries: number;

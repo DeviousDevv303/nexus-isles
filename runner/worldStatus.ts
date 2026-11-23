@@ -77,6 +77,7 @@ export function buildReceipt(status: WorldStatus, opts: { journalPath: string })
   const actionsRunUrl = server && repo && runId ? `${server}/${repo}/actions/runs/${runId}` : null;
   return {
     schema: "nexus-isles-verification/v1",
+    claimClass: "runner-attested",
     verifiedAt: new Date().toISOString(),
     head: status.head,
     entries: status.entries,
