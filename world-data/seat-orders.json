@@ -1,0 +1,190 @@
+{
+  "seat": "cristian",
+  "entries": [
+    {
+      "tick": 23,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 24,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 25,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 26,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 27,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 28,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 29,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 30,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": 31,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    },
+    {
+      "tick": null,
+      "standing": true,
+      "operator": "muse",
+      "orders": [
+        {
+          "verb": "eat",
+          "args": {
+            "amount": 3
+          }
+        },
+        {
+          "verb": "gather",
+          "args": {
+            "node": "mercado-centro",
+            "amount": 4
+          }
+        }
+      ]
+    }
+  ]
+}
