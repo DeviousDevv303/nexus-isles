@@ -11,6 +11,17 @@ scripted-policy residents are seated in a persistent world; and the real
 Nexus adapter (below). A config file can name a provider, but an
 unregistered provider is a refusal to start, never an improvisation.
 
+`scripted-policy:survival` has two versions, chosen by the version a seat
+names. **v1** is the policy the first live session ran, kept unchanged
+because its version is journaled on every action it took. It scans every
+visible region and can name a node in a neighbouring region, which the
+validator refuses (`not_in_region`): that is how `hauler` starved on tick 8
+(#235 comment 7089299881). **v2** gathers only in the resident's own region,
+eats when carrying food and hungry, and moves to a stocked neighbour only at
+intel 1, where every visible region is one move away. New scripted seats
+should name v2. Rebinding a living resident from v1 to v2 is an owner
+decision; nothing here does it.
+
 `runner/genesis.live.example.json` expresses the decided first-live shape
 — a persistent Juarez world seating Nexus (`nexus:run25-local`) plus two
 `scripted-policy:survival` residents. It is an example: the launch seed,

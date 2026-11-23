@@ -55,6 +55,76 @@ export function survivalPolicy(input: { observation: Observation }): readonly Ac
 }
 
 /**
+ * Survival policy v2 — the fix for the first live session's hauler death
+ * (#235 comment 7089299881: hauler, zaragoza, starved on tick 8 after the
+ * validator rejected all 7 of its gathers as not_in_region).
+ *
+ * The v1 defect, proven from the map: v1 scans every VISIBLE region in
+ * sorted order and names the first stocked node it finds. A resident sees
+ * its neighbours (intel hops), but the validator lets it gather only where
+ * it stands. From zaragoza the visible regions sort as industrial-east,
+ * ysleta, zaragoza, so v1 named industrial-east's maquila-commissary on
+ * every tick and never gathered. scout survived only because its own region
+ * happens to sort first. v1 stays registered unchanged: its version is
+ * journaled on every action it took (AT-20), so its behaviour is history.
+ *
+ * v2 reads ONLY the observation, like v1, and:
+ *   1. eats when it is carrying food and satiety has fallen to the
+ *      threshold, never more than fits (maxSatiety - satiety);
+ *   2. gathers only from a stocked node in its OWN region;
+ *   3. when its own region is bare, eats whatever it carries;
+ *   4. otherwise, and only when every other visible region is a neighbour
+ *      (intel 1: perception radius equals one move), moves to the first
+ *      stocked neighbouring region in sorted order; with wider intel it
+ *      cannot tell a neighbour from a region two hops out, so it waits
+ *      rather than propose a move the validator would refuse;
+ *   5. otherwise waits.
+ * Every action it proposes is one the validator can accept from the
+ * observed state; it never names a node or region it cannot reach.
+ */
+export const SURVIVAL_V2_EAT_AT_SATIETY = 4;
+
+export function survivalPolicyV2(input: { observation: Observation }): readonly Action[] {
+  const v = input.observation.visible as {
+    satiety?: unknown;
+    maxSatiety?: unknown;
+    inventory?: unknown;
+    position?: unknown;
+    intel?: unknown;
+    regions?: Record<string, { nodes?: Record<string, number> }>;
+    nodes?: Record<string, number>;
+  };
+  const satiety = typeof v.satiety === "number" ? v.satiety : 0;
+  const maxSatiety = typeof v.maxSatiety === "number" ? v.maxSatiety : Number.POSITIVE_INFINITY;
+  const inventory = typeof v.inventory === "number" ? v.inventory : 0;
+  const room = Math.max(1, maxSatiety - satiety);
+  const eat = (): readonly Action[] => [{ verb: "eat", args: { amount: Math.max(1, Math.min(inventory, 3, room)) } }];
+  const firstStocked = (pool: Record<string, number> | undefined): string | undefined =>
+    Object.keys(pool ?? {}).sort().find((node) => (pool as Record<string, number>)[node] > 0);
+
+  if (inventory > 0 && satiety <= SURVIVAL_V2_EAT_AT_SATIETY) return eat();
+
+  // Map world: gather where you stand, never in a region you can only see.
+  if (v.regions) {
+    const here = typeof v.position === "string" ? v.position : undefined;
+    const local = here ? firstStocked(v.regions[here]?.nodes) : undefined;
+    if (local) return [{ verb: "gather", args: { node: local, amount: 2 } }];
+    if (inventory > 0) return eat();
+    if (here && v.intel === 1) {
+      const target = Object.keys(v.regions).sort().find((region) => region !== here && firstStocked(v.regions?.[region]?.nodes));
+      if (target) return [{ verb: "move", args: { to: target } }];
+    }
+    return [{ verb: "wait", args: {} }];
+  }
+
+  // Mapless world: every visible node is gatherable.
+  const node = firstStocked(v.nodes);
+  if (node) return [{ verb: "gather", args: { node, amount: 2 } }];
+  if (inventory > 0) return eat();
+  return [{ verb: "wait", args: {} }];
+}
+
+/**
  * The production identity of the scripted survival policy, for worlds that
  * seat scripted-policy residents as REAL residents (the owner's decided
  * first-live roster: Nexus + two scripted-policy residents in a persistent
@@ -66,10 +136,28 @@ export function survivalPolicy(input: { observation: Observation }): readonly Ac
  * policy, journaled under its own name on every action (AT-20).
  */
 export const SCRIPTED_SURVIVAL_REF = { providerId: "scripted-policy:survival", version: "v1" } as const;
+/** The fixed policy's identity: same provider, new version, so the journal says which policy acted. */
+export const SCRIPTED_SURVIVAL_V2_REF = { providerId: "scripted-policy:survival", version: "v2" } as const;
+
+/** Versions of the production scripted policy, by the version a seat names. Unknown versions are refused. */
+const SCRIPTED_SURVIVAL_VERSIONS: Readonly<Record<string, (input: { observation: Observation }) => readonly Action[]>> = {
+  [SCRIPTED_SURVIVAL_REF.version]: survivalPolicy,
+  [SCRIPTED_SURVIVAL_V2_REF.version]: survivalPolicyV2,
+};
 
 export const BUILTIN_BACKEND_FACTORIES: Readonly<Record<string, BackendFactory>> = {
   "test-double:scripted-policy": () => new ScriptedPolicyBackend(survivalPolicy),
-  [SCRIPTED_SURVIVAL_REF.providerId]: () => new ScriptedPolicyBackend(survivalPolicy, SCRIPTED_SURVIVAL_REF),
+  // v1 stays exactly as journaled; v2 is the out-of-region fix. A seat names which one it runs.
+  [SCRIPTED_SURVIVAL_REF.providerId]: (seat) => {
+    const policy = SCRIPTED_SURVIVAL_VERSIONS[seat.backend.version];
+    if (!policy) {
+      throw new Error(
+        `no scripted-policy:survival version "${seat.backend.version}" (seat ${seat.seatId}); ` +
+          `registered: ${Object.keys(SCRIPTED_SURVIVAL_VERSIONS).sort().join(", ")}`,
+      );
+    }
+    return new ScriptedPolicyBackend(policy, { providerId: SCRIPTED_SURVIVAL_REF.providerId, version: seat.backend.version });
+  },
   // The real Nexus adapter: Cristian's own LLM, the seated Run 25
   // checkpoint, served by the Python sidecar in runner/nexusBackend.ts.
   // The sidecar process is spawned lazily on the first propose() and the
