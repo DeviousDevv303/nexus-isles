@@ -34,7 +34,7 @@ on:
       found_lineage:
         description: "Seating session only: found the successor Nunez lineage (2026-11-22 refounding). Leave false for ordinary sessions."
         required: false
-                default: "false"
+        default: "false"
   schedule:
     # Every 3 hours at :23, 10 ticks a session (80 world ticks a day). Change the cadence here.
     - cron: "23 */3 * * *"
