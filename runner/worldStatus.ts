@@ -10,6 +10,7 @@
 // summary). Nothing is written to the world directory and no lock is taken.
 
 import type { Journal } from "../ledger/journal.js";
+import type { VerificationReceipt } from "../viewer/verificationReceipt.js";
 import { replayFrames } from "../viewer/replay.js";
 
 export interface ResidentStatus {
@@ -51,6 +52,28 @@ export function worldStatus(journal: Journal): WorldStatus {
     };
   });
   return { head: journal.headHash(), entries: journal.length, tick: last.tick, chainVerified: true, residents };
+}
+
+
+
+export type { VerificationReceipt };
+export function buildReceipt(status: WorldStatus, opts: { journalPath: string }): VerificationReceipt {
+  const server = process.env.GITHUB_SERVER_URL;
+  const repo = process.env.GITHUB_REPOSITORY;
+  const runId = process.env.GITHUB_RUN_ID;
+  const actionsRunUrl = server && repo && runId ? `${server}/${repo}/actions/runs/${runId}` : null;
+  return {
+    schema: "nexus-isles-verification/v1",
+    verifiedAt: new Date().toISOString(),
+    head: status.head,
+    entries: status.entries,
+    tick: status.tick,
+    journalPath: opts.journalPath,
+    chainVerified: true,
+    replayStateHashesMatchedAtEveryCommit: true,
+    actionsRunUrl,
+    verifier: "runner/status.ts",
+  };
 }
 
 export function statusMarkdown(s: WorldStatus, title = "Nexus Isles — world status"): string {

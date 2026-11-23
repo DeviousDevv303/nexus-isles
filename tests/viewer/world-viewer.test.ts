@@ -184,7 +184,7 @@ describe("rendered page", () => {
       if (entry.type === "GATHER_GRANTED") expect(event?.resident).toBe(entry.payload.resident);
     }
     expect(html).toContain("OBSERVED journal event");
-    expect(html).toContain("No OBSERVED node events recorded for this tick.");
+    expect(html).toContain("Zero OBSERVED node events for this node this tick");
   });
 
   it("places the exact two-registers sentence in the page legend and README", () => {
@@ -210,6 +210,7 @@ describe("read-only by construction", () => {
     "viewer/replay",
     "viewer/render",
     "viewer/main",
+    "viewer/verificationReceipt",
   ]);
 
   it("viewer sources import only allowlisted read/replay surfaces", () => {
