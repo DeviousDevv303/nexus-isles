@@ -93,3 +93,35 @@ TICK tick=1 head=<hash> submitted=0 refused=0 closed=- prime=1
 TICK tick=2 head=<hash> submitted=2 refused=0 closed=-
 RUNNER stop reason=SIGINT tick=2 head=<hash>
 ```
+
+## The live world on GitHub Actions
+
+`.github/workflows/world-session.yml` keeps the one live world running from
+the journal stored on the `live-world` branch (`world-data/journal.jsonl`,
+`journal.jsonl.wal`, `snapshot.json`). Every 3 hours (or on a manual run with
+a chosen tick count) it verifies the chain and replay, resumes the world for
+10 ticks, verifies again, regenerates the viewer from the live journal,
+commits the session to `live-world` and publishes the viewer to GitHub Pages.
+The job summary carries the head, tick, residents and the runner's log.
+
+It never creates a world: the runner is run without `--config`, and an empty
+data directory is a refusal. A missing `live-world` branch or journal stops
+the job; it is not a reseed. Pushes are fast-forward only, sessions never
+overlap, and dead seats are never driven, so no Nexus checkpoint runs here.
+
+**One-time bootstrap (from the machine that holds the live world).** Stop any
+local runner first: from then on `live-world` is the only copy that ticks,
+or the world forks.
+
+```bash
+cd ~/workspace/nexus-isles-live         # the directory holding world-data/
+git clone --no-checkout https://github.com/DeviousDevv303/nexus-isles live-world-push
+cd live-world-push && git checkout --orphan live-world && git rm -rfq --cached . 2>/dev/null || true
+mkdir -p world-data
+cp ../world-data/journal.jsonl ../world-data/journal.jsonl.wal ../world-data/snapshot.json world-data/
+git add world-data && git commit -m "live world: session 1 journal (tick 11)"
+git push origin live-world
+```
+
+Then run the workflow once by hand with `expect_head` set to the session-1
+head, so the first Actions session is pinned to the real world.
