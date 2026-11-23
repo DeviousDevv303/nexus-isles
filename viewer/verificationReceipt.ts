@@ -19,4 +19,14 @@ export interface VerificationReceipt {
   /** GitHub Actions run URL when GITHUB_SERVER_URL + GITHUB_REPOSITORY + GITHUB_RUN_ID are set; else null. */
   actionsRunUrl: string | null;
   verifier: string;
+  /**
+   * The source journal's torn-tail state at load. `Journal.loadFromFile()` discards an incomplete
+   * final fragment and records offset/bytes/sha256 in `loadReport.tornTail`; without this field in
+   * the receipt, worldStatus() would attest "chain verified" while silently dropping bytes
+   * (GPT's torn-tail finding on PR #54). When present, the viewer treats the receipt as
+   * INCOMPLETE and refuses to display green.
+   */
+  sourceTornTail: null | { offset: number; bytes: number; sha256: string };
+  /** The final entry was complete but lost its newline; it was kept. Reported for symmetry. */
+  sourceUnterminatedFinalEntry: boolean;
 }

@@ -290,20 +290,62 @@ document.getElementById("prev").addEventListener("click", () => { scrub.value = 
 document.getElementById("next").addEventListener("click", () => { scrub.value = Math.min(data.frames.length - 1, Number(scrub.value) + 1); render(Number(scrub.value)); });
 function renderVerification() {
   const receiptHost = document.getElementById("verification-receipt");
+  const line = (host, label, value) => { const p = document.createElement("div"); p.innerHTML = "<strong>" + label + ":</strong> "; const code = document.createElement("code"); code.textContent = value; p.appendChild(code); host.appendChild(p); };
   if (data.verification) {
     const v = data.verification;
     receiptHost.innerHTML = "";
-    const line = (label, value) => { const p = document.createElement("div"); p.innerHTML = "<strong>" + label + ":</strong> "; const code = document.createElement("code"); code.textContent = value; p.appendChild(code); receiptHost.appendChild(p); };
+    // Bind the receipt to THIS artifact (GPT finding 1, PR #54): a receipt whose head/entries/tick
+    // do not match the embedded replay could still have rendered green beside the wrong replay.
+    // Compare, and if any field disagrees, fail closed — never display the receipt as passed.
+    const lastFrameTick = data.frames.length > 0 ? data.frames[data.frames.length - 1].tick : null;
+    const mismatches = [];
+    if (v.head !== data.journalHeadHash) mismatches.push("head: receipt " + v.head + " vs artifact " + data.journalHeadHash);
+    if (v.entries !== data.journalEntries) mismatches.push("entries: receipt " + v.entries + " vs artifact " + data.journalEntries);
+    if (lastFrameTick !== null && v.tick !== lastFrameTick) mismatches.push("tick: receipt " + v.tick + " vs artifact final frame " + lastFrameTick);
+    // Surface torn-tail (GPT finding 2, PR #54): Journal.loadFromFile's loadReport.tornTail
+    // records a discarded fragment the chain verification does not cover. The receipt must
+    // disclose it; the viewer treats it as INCOMPLETE and refuses green.
+    const tornTail = v.sourceTornTail;
+    const unterminated = v.sourceUnterminatedFinalEntry;
+    const bindingOk = mismatches.length === 0;
+    const sourceClean = !tornTail;
     const verdict = document.createElement("div");
-    verdict.className = "verdict pass";
-    verdict.textContent = "Verified by " + v.verifier + " — hash chain intact; replay matched every TICK_COMMIT state hash.";
+    if (!bindingOk) {
+      verdict.className = "verdict fail";
+      verdict.textContent = "FAIL — the runner-generated receipt does not match this replay artifact. A matching receipt was expected; a receipt from a different world or run is not evidence for this page.";
+    } else if (!sourceClean) {
+      verdict.className = "verdict absent";
+      verdict.textContent = "INCOMPLETE — runner-generated receipt for this artifact, but the source journal had a torn trailing fragment at load time. The surviving prefix was verified; the discarded bytes were not. See the Source section below.";
+    } else {
+      verdict.className = "verdict pass";
+      verdict.textContent = "Runner-generated receipt — hash chain intact and replay matched every TICK_COMMIT state hash. The run reference and head below are recorded, but external correspondence between this page and the live journal is not independently established (reproduce below).";
+    }
     receiptHost.appendChild(verdict);
-    line("Verified at", v.verifiedAt);
-    line("Head", v.head);
-    line("Tick", String(v.tick));
-    line("Entries", String(v.entries));
+    if (!bindingOk) {
+      const list = document.createElement("ul");
+      for (const m of mismatches) { const li = document.createElement("li"); li.textContent = m; list.appendChild(li); }
+      receiptHost.appendChild(list);
+    }
+    line(receiptHost, "Verified at", v.verifiedAt);
+    line(receiptHost, "Head (receipt)", v.head);
+    line(receiptHost, "Head (artifact)", data.journalHeadHash);
+    line(receiptHost, "Tick", String(v.tick));
+    line(receiptHost, "Entries", String(v.entries));
+    const srcHeader = document.createElement("div"); srcHeader.innerHTML = "<strong>Source:</strong>"; receiptHost.appendChild(srcHeader);
+    if (tornTail) {
+      const t = document.createElement("div");
+      t.className = "verdict absent";
+      t.textContent = "Torn trailing fragment: " + tornTail.bytes + " bytes discarded at offset " + tornTail.offset + " (sha256 " + tornTail.sha256 + "). This prefix was verified; the discarded tail was not and is not part of the chain.";
+      receiptHost.appendChild(t);
+    } else if (unterminated) {
+      const u = document.createElement("div"); u.className = "warn";
+      u.textContent = "The final journal entry was unterminated (no trailing newline) but parsed cleanly and was kept. No bytes were discarded.";
+      receiptHost.appendChild(u);
+    } else {
+      const c = document.createElement("div"); c.textContent = "Complete file, no torn tail."; receiptHost.appendChild(c);
+    }
     if (v.actionsRunUrl) { const r = document.createElement("div"); r.innerHTML = "<strong>Run:</strong> "; const a = document.createElement("a"); a.href = v.actionsRunUrl; a.textContent = v.actionsRunUrl; a.rel = "noopener"; a.target = "_blank"; r.appendChild(a); receiptHost.appendChild(r); }
-    const nb = document.createElement("div"); nb.className = "warn"; nb.textContent = "The receipt is a dated statement; it is not a cryptographic signature of this page. Reproduce independently (below) for proof outside trust in the verifier."; receiptHost.appendChild(nb);
+    const nb = document.createElement("div"); nb.className = "warn"; nb.textContent = "This is a runner-generated receipt, not a cryptographic signature of this page. Reproduce independently (below) for proof outside trust in the verifier."; receiptHost.appendChild(nb);
   } else {
     receiptHost.innerHTML = "<div class=\"verdict absent\">No separate verification receipt was embedded for this render. The page shows recorded hashes only; matching values here do not constitute verification. Run the verification engine against the live journal to verify (see below).</div>";
   }
