@@ -89,7 +89,10 @@ jobs:
       - name: Status after
         id: after
         run: |
-          npx vite-node runner/status.ts --journal live/world-data/journal.jsonl --markdown summary.md | tee after.txt
+          # Write a verification receipt alongside the status (buildReceipt in runner/worldStatus.ts).
+          # The viewer embeds it so the page carries a dated statement of verification instead of letting
+          # the reader infer it from recorded hashes matching each other (ChatGPT P1 audit, #235).
+          npx vite-node runner/status.ts --journal live/world-data/journal.jsonl --markdown summary.md --receipt verification.json | tee after.txt
           line=$(grep '^STATUS ' after.txt)
           echo "head=$(sed -E 's/.* head=([0-9a-f]+).*/\1/' <<<"$line")" >> "$GITHUB_OUTPUT"
           echo "tick=$(sed -E 's/.* tick=([0-9]+).*/\1/' <<<"$line")" >> "$GITHUB_OUTPUT"
@@ -106,7 +109,8 @@ jobs:
       - name: Regenerate the viewer from the live journal
         run: |
           mkdir -p live/viewer
-          npx vite-node viewer/main.ts --journal live/world-data/journal.jsonl --out live/viewer/index.html
+          npx vite-node viewer/main.ts --journal live/world-data/journal.jsonl --out live/viewer/index.html --verification verification.json
+          cp verification.json live/viewer/verification.json
           cp summary.md live/STATUS.md
       - name: Commit the session to live-world
         env:

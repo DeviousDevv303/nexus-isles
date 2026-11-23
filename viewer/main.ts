@@ -13,6 +13,7 @@
 
 import { writeFileSync } from "node:fs";
 import { loadJournalForViewing, replayFrames } from "./replay.js";
+import { readFileSync } from "node:fs";
 import { renderViewerHtml } from "./render.js";
 
 function argValue(name: string): string | undefined {
@@ -22,8 +23,10 @@ function argValue(name: string): string | undefined {
 
 function main(): void {
   const journalPath = argValue("journal");
-  if (!journalPath) throw new Error("usage: viewer/main.ts --journal <journal.jsonl> [--out <file.html>]");
+  if (!journalPath) throw new Error("usage: viewer/main.ts --journal <journal.jsonl> [--out <file.html>] [--verification <receipt.json>]");
   const out = argValue("out") ?? "./world-view.html";
+  const verificationPath = argValue("verification");
+  const verification = verificationPath ? JSON.parse(readFileSync(verificationPath, "utf8")) : null;
 
   const journal = loadJournalForViewing(journalPath);
   const frames = replayFrames(journal);
@@ -31,6 +34,7 @@ function main(): void {
     journalLabel: journalPath,
     journalEntries: journal.length,
     journalHeadHash: journal.headHash(),
+    verification,
   });
   writeFileSync(out, html, "utf8");
   const last = frames[frames.length - 1];
