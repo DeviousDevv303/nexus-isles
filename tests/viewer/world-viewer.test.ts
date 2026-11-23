@@ -209,6 +209,7 @@ describe("read-only by construction", () => {
     "engine/world/maps/juarez",
     "viewer/replay",
     "viewer/render",
+    "viewer/gameView",
     "viewer/residentView",
     "viewer/main",
     "viewer/verificationReceipt",
