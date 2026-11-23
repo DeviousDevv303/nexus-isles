@@ -2,13 +2,15 @@
 
 Infrastructure only: it creates or resumes a world in a data directory and
 keeps it ticking through the existing seat driver and world pipeline. It
-changes no engine law and adds no journal event kinds. Three backends are
+changes no engine law; the one journal event it can ask the world to land
+is the owner's refounding (`--found-lineage`, below). Four backends are
 registered in `runner/backends.ts` in code: the scripted test double,
 honestly labelled (`test-double:scripted-policy`, scratch worlds only);
 the same survival policy under its production identity
 (`scripted-policy:survival`), which is how the decided first-live roster's
-scripted-policy residents are seated in a persistent world; and the real
-Nexus adapter (below). A config file can name a provider, but an
+scripted-policy residents are seated in a persistent world; the real
+Nexus adapter (below); and the owner-orders backend that drives the
+refounded Throne seat. A config file can name a provider, but an
 unregistered provider is a refusal to start, never an improvisation.
 
 `scripted-policy:survival` has two versions, chosen by the version a seat
@@ -88,6 +90,57 @@ Configuration is by environment (defaults suit this machine):
 Seat it in a genesis config with
 `"backend": {"providerId": "nexus:run25-local", "version": "ckpt-c41852fb"}`.
 
+## The owner-orders backend (`owner-orders`) and the refounding
+
+The 2026-11-22 AA10 amendment (record:
+`docs/constitution-amendment-2026-11-22-refounding.md`) founded a
+successor Núñez lineage in the live world: resident **cristian**, at the
+Tier-0 Throne seat. He is driven by orders, not a policy or a model. The
+seating session runs the runner once with `--found-lineage` (resume only):
+the runner queues the founding, the world validates it (the superseded
+`lineage:nexus` must be extinct) and journals `LINEAGE_FOUNDED` at the
+session's first tick. Ordinary sessions never pass the flag.
+
+His backend is `owner-orders` (`runner/ownerOrders.ts`): on every tick it
+reads **`seat-orders.json`** in the data directory and proposes the orders
+filed for the tick being delivered, through the same driver and validator
+as every resident. The file is the audit trail — committed with the world
+data — and every entry names its author:
+
+```json
+{
+  "seat": "cristian",
+  "entries": [
+    { "tick": 23, "operator": "muse",
+      "orders": [ { "verb": "gather", "args": { "node": "mercado-centro", "amount": 4 } } ] },
+    { "tick": 24, "operator": "muse",
+      "orders": [ { "verb": "eat", "args": { "amount": 3 } },
+                  { "verb": "gather", "args": { "node": "mercado-centro", "amount": 4 } } ] }
+  ]
+}
+```
+
+(The two-tick shape is the engine's, not a style: an `eat` is validated
+against the inventory held when the tick's actions are validated, before
+that tick's gathers land — so food gathered on one tick is eaten from the
+next tick on.)
+
+- `tick` is the world tick the orders resolve in; `tick: null` with
+  `"standing": true` covers any tick without a tick-specific entry.
+- `operator` is who authored the entry. Operation passes by authorship,
+  not code: `muse` operates until a Nexus run passes the frozen grade
+  and takes the seat, then `nexus`. The owner's entries (`operator:
+  "owner"` — including directives from the resident view's chat box,
+  which carry `directive` text and no pre-translated actions) override
+  the operator's for the same tick; an owner directive with no orders
+  displaces the operator's plan for that tick until the operator
+  translates it. Within one author class the last entry wins —
+  corrections are appended, originals remain.
+- An unlawful order is refused by the validator and journaled
+  (`ACTION_REJECTED`), never forced. A tick with no governing entry gets
+  no orders: the resident waits and still decays — the operator keeps
+  the file stocked ahead of the sessions.
+
 ## Data directory
 
 | File | What it is |
@@ -95,6 +148,7 @@ Seat it in a genesis config with
 | `journal.jsonl` | The world journal — authoritative. (`.wal` beside it is the console write-ahead log, managed by the engine.) |
 | `snapshot.json` | State cache for fast resume; validated against the journal by `World.restore`, ignored if it disagrees. |
 | `runner.lock` | Live-runner lock (pid, host, start time). |
+| `seat-orders.json` | The Throne seat's orders file (see above): entries naming tick, operator, and orders/directive. The audit trail of who directed the founding resident. |
 
 ## Logs (stdout, one line per event)
 

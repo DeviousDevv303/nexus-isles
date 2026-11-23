@@ -13,6 +13,7 @@ import { juarezMap } from "../engine/world/maps/juarez.js";
 import type { JournalEntry } from "../ledger/journal.js";
 import type { VerificationReceipt } from "./verificationReceipt.js";
 import { loadJournalForViewing, type TickFrame } from "./replay.js";
+import { renderResidentViewHtml, residentViewFromJournal, RESIDENT_VIEW_SEAT } from "./residentView.js";
 
 /** The auditor-surface label. Acceptance condition: it stays on the page. */
 export const AUDITOR_LABEL =
@@ -131,6 +132,17 @@ export function renderViewerHtml(frames: readonly TickFrame[], opts: RenderOptio
     throw new Error("journal head changed between replay and rendering");
   }
   const events = nodeEventsByTick(journal.entries());
+  // The resident's view, derived from the same journal and the final
+  // replayed frame: his own state and his latest delivered observation —
+  // nothing beyond his observation model (viewer/residentView.ts).
+  const residentView = residentViewFromJournal(
+    journal.entries(),
+    frames[frames.length - 1].state,
+    RESIDENT_VIEW_SEAT,
+  );
+  const residentSection = renderResidentViewHtml(residentView, {
+    nextTick: frames[frames.length - 1].tick + 1,
+  });
   const payload = {
     label: AUDITOR_LABEL,
     journalLabel: opts.journalLabel,
@@ -180,6 +192,13 @@ export function renderViewerHtml(frames: readonly TickFrame[], opts: RenderOptio
   table { border-collapse: collapse; margin-top: 1rem; }
   td, th { border: 1px solid #39434d; padding: 0.3rem 0.6rem; text-align: left; font-size: 0.9rem; }
   .hash { font-family: ui-monospace, monospace; font-size: 0.8rem; word-break: break-all; }
+  .resident-view { border: 2px solid #4a7a4a; border-radius: 6px; padding: 0.75rem 1rem; margin: 1.5rem 0; background: #141a16; }
+  .resident-label { border: 1px solid #4a7a4a; background: #1a241c; color: #a8d8a8;
+    padding: 0.6rem 0.8rem; font-weight: 600; border-radius: 6px; }
+  .orders-box textarea { width: 100%; box-sizing: border-box; background: #0b0f13; color: #e8ecef;
+    border: 1px solid #39434d; border-radius: 4px; padding: 0.5rem; font: inherit; }
+  .orders-box button { margin-top: 0.5rem; padding: 0.45rem 0.9rem; font: inherit; cursor: pointer; }
+  .orders-composed { background: #0b0f13; padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.8rem; }
 </style>
 </head>
 <body>
@@ -387,6 +406,7 @@ function renderVerification() {
 renderVerification();
 render(data.frames.length - 1);
 </script>
+${residentSection}
 </body>
 </html>
 `;
