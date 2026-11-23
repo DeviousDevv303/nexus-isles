@@ -31,6 +31,10 @@ on:
         description: "Optional: refuse to run unless the live journal's head is this hash (pin the first session to session 1's head)"
         required: false
         default: ""
+      found_lineage:
+        description: "Seating session only: found the successor Nunez lineage (2026-11-22 refounding). Leave false for ordinary sessions."
+        required: false
+                default: "false"
   schedule:
     # Every 3 hours at :23, 10 ticks a session (80 world ticks a day). Change the cadence here.
     - cron: "23 */3 * * *"
@@ -80,11 +84,15 @@ jobs:
       - name: Run the session
         env:
           TICKS: ${{ github.event.inputs.ticks || '10' }}
+          FOUND_LINEAGE: ${{ github.event.inputs.found_lineage || 'false' }}
         run: |
           case "$TICKS" in ''|*[!0-9]*) echo "::error::ticks must be a whole number"; exit 1;; esac
           if [ "$TICKS" -lt 1 ] || [ "$TICKS" -gt 100 ]; then echo "::error::ticks must be 1-100"; exit 1; fi
           # No --config: resume only. The runner refuses to create a world without one.
-          npx vite-node runner/main.ts --data-dir live/world-data --ticks "$TICKS" --interval-ms 0 | tee session.log
+          # --found-lineage is passed only for the one seating session (2026-11-22 refounding).
+          session_args=(--data-dir live/world-data --ticks "$TICKS" --interval-ms 0)
+          if [ "$FOUND_LINEAGE" = "true" ]; then session_args+=(--found-lineage); fi
+          npx vite-node runner/main.ts "${session_args[@]}" | tee session.log
           grep -q "RUNNER start mode=resumed" session.log || { echo "::error::the runner did not resume the existing world"; exit 1; }
       - name: Status after
         id: after
