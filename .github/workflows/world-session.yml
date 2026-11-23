@@ -1,0 +1,145 @@
+# Nexus Isles — live world sessions on GitHub Actions.
+#
+# Keeps the ONE live world ticking from the journal stored on the
+# `live-world` branch (world-data/journal.jsonl + snapshot + WAL), then
+# verifies the hash chain, replays every committed state hash, regenerates
+# the world viewer from that journal, commits the new journal back to
+# `live-world`, and publishes the viewer to GitHub Pages.
+#
+# What this workflow will never do:
+#   - create a world. runner/main.ts is run WITHOUT --config, and the runner
+#     refuses an empty data directory ("nothing to resume, nothing to
+#     create"). A missing journal stops the job; it is never a reseed.
+#   - rewrite history. Pushes are plain fast-forwards; a rejected push fails
+#     the job instead of forcing.
+#   - drive a dead seat. The runner skips dead residents (death is
+#     permanent), so the vacant Nunez seat stays vacant and no Nexus
+#     checkpoint or Python sidecar is needed here.
+#   - run two sessions at once. The concurrency group serialises every run.
+#
+# One-time owner setup: Settings -> Pages -> Source: "GitHub Actions" (for the
+# viewer URL). The session itself does not depend on Pages.
+name: world-session
+on:
+  workflow_dispatch:
+    inputs:
+      ticks:
+        description: "Driver ticks to run this session (1-100)"
+        required: true
+        default: "10"
+      expect_head:
+        description: "Optional: refuse to run unless the live journal's head is this hash (pin the first session to session 1's head)"
+        required: false
+        default: ""
+  schedule:
+    # Every 3 hours at :23, 10 ticks a session (80 world ticks a day). Change the cadence here.
+    - cron: "23 */3 * * *"
+permissions:
+  contents: read
+concurrency:
+  group: nexus-isles-live-world
+  cancel-in-progress: false
+jobs:
+  session:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    outputs:
+      head: ${{ steps.after.outputs.head }}
+      tick: ${{ steps.after.outputs.tick }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require the live journal (never create a world)
+        run: |
+          if ! git ls-remote --exit-code --heads origin live-world >/dev/null; then
+            echo "::error::No live-world branch. The live journal (world-data/journal.jsonl, journal.jsonl.wal, snapshot.json) must be pushed to the live-world branch first. This workflow never creates or reseeds a world."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: live-world
+          path: live
+      - name: Check the journal is present
+        run: |
+          test -s live/world-data/journal.jsonl || { echo "::error::live-world has no world-data/journal.jsonl; refusing to run (no reseed)."; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Status before (chain + replay verified)
+        env:
+          EXPECT_HEAD: ${{ github.event.inputs.expect_head }}
+        run: |
+          args=(--journal live/world-data/journal.jsonl)
+          if [ -n "$EXPECT_HEAD" ]; then args+=(--expect-head "$EXPECT_HEAD"); fi
+          npx vite-node runner/status.ts "${args[@]}" | tee before.txt
+      - name: Run the session
+        env:
+          TICKS: ${{ github.event.inputs.ticks || '10' }}
+        run: |
+          case "$TICKS" in ''|*[!0-9]*) echo "::error::ticks must be a whole number"; exit 1;; esac
+          if [ "$TICKS" -lt 1 ] || [ "$TICKS" -gt 100 ]; then echo "::error::ticks must be 1-100"; exit 1; fi
+          # No --config: resume only. The runner refuses to create a world without one.
+          npx vite-node runner/main.ts --data-dir live/world-data --ticks "$TICKS" --interval-ms 0 | tee session.log
+          grep -q "RUNNER start mode=resumed" session.log || { echo "::error::the runner did not resume the existing world"; exit 1; }
+      - name: Status after
+        id: after
+        run: |
+          npx vite-node runner/status.ts --journal live/world-data/journal.jsonl --markdown summary.md | tee after.txt
+          line=$(grep '^STATUS ' after.txt)
+          echo "head=$(sed -E 's/.* head=([0-9a-f]+).*/\1/' <<<"$line")" >> "$GITHUB_OUTPUT"
+          echo "tick=$(sed -E 's/.* tick=([0-9]+).*/\1/' <<<"$line")" >> "$GITHUB_OUTPUT"
+          {
+            cat summary.md
+            echo "Before: \`$(grep '^STATUS ' before.txt)\`"
+            echo
+            echo "After: \`$line\`"
+            echo
+            echo '```'
+            grep -E '^(RUNNER|TICK)' session.log
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Regenerate the viewer from the live journal
+        run: |
+          mkdir -p live/viewer
+          npx vite-node viewer/main.ts --journal live/world-data/journal.jsonl --out live/viewer/index.html
+          cp summary.md live/STATUS.md
+      - name: Commit the session to live-world
+        env:
+          HEAD_HASH: ${{ steps.after.outputs.head }}
+          TICK: ${{ steps.after.outputs.tick }}
+        run: |
+          cd live
+          rm -f world-data/runner.lock world-data/journal.jsonl.lock
+          printf 'world-data/runner.lock\nworld-data/*.lock\n' > .gitignore
+          git config user.name "nexus-isles-world"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .gitignore world-data viewer STATUS.md
+          git commit -m "session: world tick ${TICK}, head ${HEAD_HASH}" -m "Run ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          git push origin HEAD:live-world
+      - uses: actions/upload-artifact@v4
+        with:
+          name: world-view-tick-${{ steps.after.outputs.tick }}
+          path: live/viewer/index.html
+  pages:
+    needs: session
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: live-world
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: viewer
+      - id: deploy
+        uses: actions/deploy-pages@v4
