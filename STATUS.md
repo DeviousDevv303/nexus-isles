@@ -1,13 +1,13 @@
 ## Nexus Isles — world status
 
-- World tick: **31**
-- Journal: **375** entries, hash chain verified, replay matches every committed state hash
+- World tick: **32**
+- Journal: **393** entries, hash chain verified, replay matches every committed state hash
 - Source: complete file, no torn tail.
-- Head: `06d02f4d385ba50861538b30f79aa91c3a9e7a094039ef656543569e76e8343e`
+- Head: `5fb8d134e54d83410a6d9e2982517bfe622f2cb081cb1faeae2381eda0351220`
 
 | Resident | State | Region | Satiety | Inventory | Backend |
 |---|---|---|---|---|---|
-| cristian | ALIVE | centro | 10/10 | 24 | `owner-orders@v1` |
+| cristian | ALIVE | centro | 10/10 | 27 | `owner-orders@v1` |
 | hauler | DEAD (tick 8) | zaragoza | 0/10 | 0 | `scripted-policy:survival@v1` |
 | nexus | DEAD (tick 8) | centro | 0/10 | 0 | `nexus:run25-local@ckpt-c41852fb` |
-| scout | ALIVE | industrial-east | 7/10 | 10 | `scripted-policy:survival@v1` |
+| scout | ALIVE | industrial-east | 6/10 | 12 | `scripted-policy:survival@v1` |
