@@ -2,7 +2,12 @@
 //
 //   npx vite-node runner/main.ts \
 //     --data-dir ./world-data --config runner/genesis.example.json \
-//     [--interval-ms 1000] [--ticks N]
+//     [--interval-ms 1000] [--ticks N] [--found-lineage]
+//
+// --found-lineage (resume only): queue the 2026-11-22 refounding so it
+// lands at the session's first tick, if the world does not hold the
+// founding resident yet. The seating session uses it once; ordinary
+// sessions never pass it.
 //
 // Without --ticks the runner ticks on the interval until SIGINT/SIGTERM,
 // finishing the in-flight tick before exiting. With --ticks N it runs N
@@ -37,8 +42,9 @@ async function main(): Promise<void> {
   const intervalMs = intArg("interval-ms");
   const maxTicks = intArg("ticks");
   const genesis = configPath ? loadGenesisConfig(configPath) : undefined;
+  const foundLineage = process.argv.includes("--found-lineage");
 
-  const runner = new LaunchRunner({ dataDir, genesis, tickIntervalMs: intervalMs });
+  const runner = new LaunchRunner({ dataDir, genesis, tickIntervalMs: intervalMs, foundLineage });
   await runner.start();
 
   let stopping = false;

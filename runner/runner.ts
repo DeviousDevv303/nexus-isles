@@ -1,11 +1,16 @@
 // Nexus Isles — the launch runner (infrastructure only).
 //
 // Owns a data directory and keeps one world ticking through the EXISTING
-// seat driver and world pipeline. It adds no engine behaviour: no new
-// journal event kinds, no rule changes — genesis, resume, ticking,
-// persistence and shutdown all go through World / SeatDriver / Journal as
-// they already exist (including the PR #22/#23 durability machinery: the
-// journal's per-tick fsync'd append and the console WAL inside World).
+// seat driver and world pipeline. It adds no engine behaviour of its own
+// — genesis, resume, ticking, persistence and shutdown all go through
+// World / SeatDriver / Journal as they already exist (including the
+// PR #22/#23 durability machinery: the journal's per-tick fsync'd append
+// and the console WAL inside World). The one journal event the runner can
+// ask the world to land is the owner's: with foundLineage set, start()
+// queues the 2026-11-22 refounding (LINEAGE_FOUNDED, an engine event the
+// AA10 amendment defines) on a resumed world that does not hold the
+// founding resident yet; the world validates and journals it, the runner
+// only carries the request.
 // Every tick the runner delivers is NAMED with the PR #35 delivery identity
 // (expectTick = the world tick it will commit): the priming engine tick and
 // each driver tick alike, so a redelivered tick command is refused by the
@@ -38,9 +43,14 @@ import {
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { World } from "../engine/world/world.js";
+import { REFOUNDING_LINEAGE_ID, REFOUNDING_RESIDENT_ID } from "../engine/world/state.js";
 import { SeatDriver, type DrivenSeat } from "../seats/driver.js";
 import { BUILTIN_BACKEND_FACTORIES, createBackend, type BackendFactory } from "./backends.js";
 import { effectiveWorldClass, worldConfigFor, type GenesisConfig, type RunnerSeatSpec } from "./config.js";
+import { OWNER_ORDERS_REF } from "./ownerOrders.js";
+
+/** The authority on the record for the refounding this runner can land. */
+export const REFOUNDING_RULING = "forgeclaw #235 comment 7090833287 (owner ruling, 2026-11-22)";
 
 export interface RunnerOptions {
   /** Directory holding this world's journal, snapshot and lock. */
@@ -53,6 +63,14 @@ export interface RunnerOptions {
   log?: (line: string) => void;
   /** Backend registry override (tests, future real adapters). */
   backendFactories?: Readonly<Record<string, BackendFactory>>;
+  /**
+   * Land the 2026-11-22 refounding (AA10 amendment): when the resumed
+   * world does not yet hold the founding resident, queue the founding so
+   * it lands at this session's first tick. A world that already holds
+   * him is left exactly as it is. Off by default: ordinary sessions never
+   * found anything.
+   */
+  foundLineage?: boolean;
 }
 
 interface LockInfo {
@@ -79,9 +97,12 @@ export class LaunchRunner {
   private readonly intervalMs: number;
   private readonly logLine: (line: string) => void;
   private readonly factories: Readonly<Record<string, BackendFactory>>;
+  private readonly foundLineageOpt: boolean;
 
   private world: World | null = null;
   private driver: SeatDriver | null = null;
+  /** Seat ids the current driver drives; rebuilt when the set changes. */
+  private drivenIds = new Set<string>();
   private mode: "genesis" | "resumed" | null = null;
   private lockOwned = false;
   private started = false;
@@ -98,6 +119,7 @@ export class LaunchRunner {
     }
     this.logLine = opts.log ?? ((line) => console.log(line));
     this.factories = opts.backendFactories ?? BUILTIN_BACKEND_FACTORIES;
+    this.foundLineageOpt = opts.foundLineage ?? false;
   }
 
   private get journalPath(): string {
@@ -150,6 +172,9 @@ export class LaunchRunner {
     if (this.ticking) throw new Error("a tick is already in flight");
     this.ticking = true;
     try {
+      // A resident founded mid-session (the refounding) becomes drivable
+      // from the tick after he exists; a resident who died leaves the set.
+      this.refreshDriver(this.world);
       const report = await this.driver.tick({ expectTick: opts.expectTick ?? this.world.tickNumber + 1 });
       this.world.writeSnapshot(this.snapshotPath);
       this.logLine(
@@ -209,6 +234,7 @@ export class LaunchRunner {
     const world = this.world;
     this.world = null;
     this.driver = null;
+    this.drivenIds = new Set();
     world.close();
   }
 
@@ -254,22 +280,11 @@ export class LaunchRunner {
     this.world = world;
     if (this.mode === "resumed" && this.genesis) this.crossCheckGenesis(world);
 
-    const seats = this.genesis?.seats ?? this.seatsFromWorld(world);
-    const driven: DrivenSeat[] = [];
-    for (const seat of seats) {
-      const resident = world.state.residents[seat.seatId];
-      if (!resident) throw new Error(`seat ${seat.seatId} is not a resident of this world`);
-      if (!resident.alive) {
-        // Death is permanent: a dead resident's seat is never re-driven.
-        this.logLine(`RUNNER seat-skipped seat=${seat.seatId} reason=dead`);
-        continue;
-      }
-      driven.push({ seatId: seat.seatId, backend: createBackend(seat, this.factories) });
-    }
-    this.driver = new SeatDriver(world, driven);
+    if (this.foundLineageOpt) this.queueFounding(world);
+    this.refreshDriver(world, { logSkips: true });
     this.logLine(
       `RUNNER start mode=${this.mode} tick=${world.tickNumber} head=${world.headHash} ` +
-        `worldClass=${world.worldClass} seats=${driven.map((d) => d.seatId).join(",") || "-"}`,
+        `worldClass=${world.worldClass} seats=${[...this.drivenIds].sort().join(",") || "-"}`,
     );
     if (world.tickNumber === 0) {
       // Prime: one engine tick delivers the first observations, so the
@@ -313,6 +328,57 @@ export class LaunchRunner {
           `the journal's world class ${actual} — refusing to drive the wrong world`,
       );
     }
+  }
+
+  /**
+   * Queue the 2026-11-22 refounding on the opened world, when asked and
+   * not yet landed. The world validates it against current state at queue
+   * time (the superseded lineage must be extinct), so an unlawful
+   * founding refuses the start instead of corrupting a tick.
+   */
+  private queueFounding(world: World): void {
+    if (world.state.residents[REFOUNDING_RESIDENT_ID]) {
+      this.logLine(`RUNNER founding-skipped resident=${REFOUNDING_RESIDENT_ID} reason=already-founded`);
+      return;
+    }
+    const superseded = world.state.residents["nexus"]?.lineage ?? "lineage:nexus";
+    world.queueLineageFounding(superseded, OWNER_ORDERS_REF, REFOUNDING_RULING);
+    this.logLine(
+      `RUNNER founding-queued resident=${REFOUNDING_RESIDENT_ID} lineage=${REFOUNDING_LINEAGE_ID} supersedes=${superseded}`,
+    );
+  }
+
+  /**
+   * (Re)build the seat driver when the drivable set has changed: the
+   * configured seats, or — resuming without a config — every living
+   * resident with a backend bound. Death removes a seat permanently; a
+   * founding adds one. Between ticks the old driver holds no in-flight
+   * state, so rebuilding is exact: bindings re-land as no-ops when the
+   * bound ref is unchanged.
+   */
+  private refreshDriver(world: World, opts: { logSkips?: boolean } = {}): void {
+    const seats = this.genesis?.seats ?? this.seatsFromWorld(world);
+    const live: RunnerSeatSpec[] = [];
+    for (const seat of seats) {
+      const resident = world.state.residents[seat.seatId];
+      if (!resident) throw new Error(`seat ${seat.seatId} is not a resident of this world`);
+      if (!resident.alive) {
+        // Death is permanent: a dead resident's seat is never re-driven.
+        if (opts.logSkips) this.logLine(`RUNNER seat-skipped seat=${seat.seatId} reason=dead`);
+        continue;
+      }
+      live.push(seat);
+    }
+    const ids = new Set(live.map((s) => s.seatId));
+    const changed =
+      this.driver === null || ids.size !== this.drivenIds.size || [...ids].some((id) => !this.drivenIds.has(id));
+    if (!changed) return;
+    const driven: DrivenSeat[] = live.map((seat) => ({
+      seatId: seat.seatId,
+      backend: createBackend(seat, this.factories, { dataDir: this.dataDir }),
+    }));
+    this.driver = new SeatDriver(world, driven);
+    this.drivenIds = ids;
   }
 
   /** Resume without a config: drive every living resident that has a backend bound. */
