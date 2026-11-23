@@ -240,6 +240,51 @@
       "tests": [
         "tests/at02/world-class.test.ts"
       ]
+    },
+    {
+      "id": "refounding-v1",
+      "status": "RATIFIED",
+      "why": "The 2026-11-22 refounding shape — resident cristian, successor lineage lineage:nunez, the Tier-0 Throne seat, and the genesis-norm starting state — is fixed by the owner's AA10 amendment (docs/constitution-amendment-2026-11-22-refounding.md), not a build choice",
+      "source": {
+        "ruling": "7090833287"
+      },
+      "symbols": [
+        {
+          "file": "engine/world/state.ts",
+          "name": "REFOUNDING_RESIDENT_ID"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "REFOUNDING_LINEAGE_ID"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_POSITION"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_SATIETY"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_MAX_SATIETY"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_ACTIONS_PER_TICK"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_INTEL"
+        },
+        {
+          "file": "engine/world/state.ts",
+          "name": "FOUNDING_INITIATIVE"
+        }
+      ],
+      "tests": [
+        "tests/runner/seat-founding.test.ts"
+      ]
     }
   ]
 }

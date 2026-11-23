@@ -25,12 +25,14 @@ import { WorldClassError, WorldStoppedError, WriterLock, checkTickDelivery, clea
 import { appendWal, readWal, rewriteWal, walPathFor, type WalRecord } from "./wal.js";
 import { rngFor } from "./rng.js";
 import {
+  buildLineageFoundingPayload,
   hashState,
   isBackendRef,
   isTestDouble,
   lineageIdFor,
   normalizeConfig,
   reduce,
+  REFOUNDING_RESIDENT_ID,
   validateConfig,
   type BackendRef,
   type WorldClass,
@@ -108,6 +110,8 @@ export class World {
   private pendingRejections: Record<string, unknown>[] = [];
   private pendingRecovery: Record<string, unknown> | null = null;
   private pendingDriverRejections: Record<string, unknown>[] = [];
+  /** The queued 2026-11-22 refounding, landed at the next tick boundary. */
+  private pendingFounding: Record<string, unknown> | null = null;
 
   private constructor(
     private readonly journal: Journal,
@@ -390,6 +394,46 @@ export class World {
     }
   }
 
+  /**
+   * Queue the 2026-11-22 refounding (AA10 amendment, #235 comment
+   * 7090833287): the successor Núñez lineage is founded and its founding
+   * resident takes the Tier-0 Throne seat at the next tick boundary, as a
+   * LINEAGE_FOUNDED entry ahead of everything else in that tick — so the
+   * resident exists before the tick's needs, observations and actions, and
+   * is observed and may act from the following tick like any resident.
+   * The payload is validated NOW against current state through the same
+   * reducer replay will use, so an unlawful founding (the superseded
+   * lineage not yet extinct, a founding already landed) refuses here, at
+   * submission, instead of corrupting a tick. Queued-but-unticked, it does
+   * not survive a restart — queue it in the session that ticks it.
+   */
+  queueLineageFounding(supersedesLineage: string, backend: BackendRef, ruling: string): void {
+    if (this.pendingFounding) throw new Error("a lineage founding is already queued for the next tick");
+    if (this.st.residents[REFOUNDING_RESIDENT_ID]) {
+      throw new Error(`resident ${REFOUNDING_RESIDENT_ID} already exists — the refounding has landed`);
+    }
+    const payload = buildLineageFoundingPayload(supersedesLineage, backend, ruling);
+    // Fail fast through the exact validation the reducer applies at replay.
+    reduce(this.st, {
+      index: this.journal.length,
+      tick: this.st.tick + 1,
+      type: "LINEAGE_FOUNDED",
+      actor: "owner-console",
+      payload: { ...payload },
+      prevHash: this.journal.headHash(),
+      hash: "",
+    });
+    this.pendingFounding = payload as unknown as Record<string, unknown>;
+  }
+
+  /** Land a queued refounding at the start of the tick, before it resolves. */
+  private stepFounding(): void {
+    if (!this.pendingFounding) return;
+    const payload = this.pendingFounding;
+    this.pendingFounding = null;
+    this.emit("LINEAGE_FOUNDED", "owner-console", payload);
+  }
+
   /** Journal what the last restore repaired, at the first boundary after it. */
   private stepRecovery(): void {
     if (!this.pendingRecovery) return;
@@ -476,6 +520,7 @@ export class World {
     this.emit("TICK_START", "engine", { tick: t }, t); //                      1
     this.stepRecovery(); // what the restore repaired, on the record
     this.stepConsoleEvents(); // AA9: interventions journaled before the tick resolves
+    this.stepFounding(); // the refounding lands before the tick it founds in resolves
     for (const payload of this.pendingDriverRejections) {
       this.emit("DRIVER_ACTION_REJECTED", "seat-driver", payload);
     }

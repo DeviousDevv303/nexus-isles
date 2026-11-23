@@ -161,6 +161,75 @@ export interface WorldState {
 export const DEFAULT_REPRODUCTION_COST = 4;
 export const lineageIdFor = (founderId: string): string => `lineage:${founderId}`;
 
+// ---- The 2026-11-22 refounding (AA10 owner amendment) ---------------------
+//
+// Owner ruling 2026-11-22 (#235 comment 7090833287), recorded in
+// docs/constitution-amendment-2026-11-22-refounding.md: the extinct
+// lineage:nexus is NOT revived (AA11.1's anti-resurrection clause stands);
+// a successor Núñez lineage is founded by charter amendment, with one new
+// founding resident carrying the Tier-0 Throne seat. The founding shape is
+// constitutional text, not a parameter: the LINEAGE_FOUNDED reducer below
+// accepts exactly these values and rejects every deviation, so the journal
+// can never record a refounding at better-than-genesis norms. Starting
+// state is the genesis norm every runner-seated resident starts with
+// (runner/config.ts defaults, genesis.live.example.json): Centro
+// Histórico, satiety 8 of 10, inventory 0, 2 actions per tick, intel 1.
+export const REFOUNDING_RESIDENT_ID = "cristian";
+export const REFOUNDING_LINEAGE_ID = "lineage:nunez";
+export const FOUNDING_POSITION = "centro";
+export const FOUNDING_SATIETY = 8;
+export const FOUNDING_MAX_SATIETY = 10;
+export const FOUNDING_ACTIONS_PER_TICK = 2;
+export const FOUNDING_INTEL = 1;
+export const FOUNDING_INITIATIVE = 0;
+
+/**
+ * The exact LINEAGE_FOUNDED payload. `supersedesLineage` names the extinct
+ * lineage the amendment succeeds (a historical fact the reducer verifies:
+ * the lineage must exist in the journal's state and be fully dead).
+ * `ruling` cites the authority on the record; it is provenance, never a
+ * scoring input.
+ */
+export interface LineageFoundingPayload {
+  resident: string;
+  lineage: string;
+  supersedesLineage: string;
+  seat: "throne";
+  tier: 0;
+  position: string;
+  satiety: number;
+  maxSatiety: number;
+  actionsPerTick: number;
+  intel: number;
+  inventory: 0;
+  backend: BackendRef;
+  authority: "AA10";
+  ruling: string;
+}
+
+export function buildLineageFoundingPayload(
+  supersedesLineage: string,
+  backend: BackendRef,
+  ruling: string,
+): LineageFoundingPayload {
+  return {
+    resident: REFOUNDING_RESIDENT_ID,
+    lineage: REFOUNDING_LINEAGE_ID,
+    supersedesLineage,
+    seat: "throne",
+    tier: 0,
+    position: FOUNDING_POSITION,
+    satiety: FOUNDING_SATIETY,
+    maxSatiety: FOUNDING_MAX_SATIETY,
+    actionsPerTick: FOUNDING_ACTIONS_PER_TICK,
+    intel: FOUNDING_INTEL,
+    inventory: 0,
+    backend: { providerId: backend.providerId, version: backend.version },
+    authority: "AA10",
+    ruling,
+  };
+}
+
 export function hashState(state: WorldState): string {
   return createHash("sha256")
     .update(canonicalStringify(state), "utf8")
@@ -468,6 +537,69 @@ export function reduce(state: WorldState | null, entry: JournalEntry): WorldStat
         successor.inventory += amount;
       }
       deceased.instrument = null;
+      return next;
+    }
+    case "LINEAGE_FOUNDED": {
+      // The 2026-11-22 refounding (AA10 amendment; see the constants block
+      // above). A one-time constitutional act, validated exactly: the named
+      // resident and lineage, the Throne seat, genesis-norm starting state,
+      // a superseded lineage that exists and is extinct, and no second
+      // founding ever. The extinct lineage is not revived — its residents
+      // stay dead and its record untouched; the successor lineage is new.
+      const id = str(p, "resident");
+      const lineage = str(p, "lineage");
+      const superseded = str(p, "supersedesLineage");
+      if (id !== REFOUNDING_RESIDENT_ID || lineage !== REFOUNDING_LINEAGE_ID) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (only the amendment's resident and lineage may be founded)");
+      }
+      if (next.residents[id]) throw new Error("LINEAGE_FOUNDED invariant violated (resident already exists)");
+      if (Object.values(next.residents).some((r) => r.lineage === lineage)) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (founding for an existing lineage)");
+      }
+      // A founding resident is the only resident born after genesis with
+      // no parents (RESIDENT_BORN children always name theirs). One
+      // founding per world: a second is a deviation, whatever it names.
+      if (Object.values(next.residents).some((r) => r.bornTick > 0 && r.parents.length === 0)) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (second founding)");
+      }
+      const supersededResidents = Object.values(next.residents).filter((r) => r.lineage === superseded);
+      if (supersededResidents.length === 0 || supersededResidents.some((r) => r.alive)) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (superseded lineage must exist and be extinct)");
+      }
+      if (!state.map) throw new Error("LINEAGE_FOUNDED invariant violated (founding is a map-world act)");
+      if (str(p, "seat") !== "throne" || int(p, "tier") !== 0) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (the founding resident carries the Tier-0 Throne seat)");
+      }
+      if (
+        str(p, "position") !== FOUNDING_POSITION ||
+        int(p, "satiety") !== FOUNDING_SATIETY ||
+        int(p, "maxSatiety") !== FOUNDING_MAX_SATIETY ||
+        int(p, "actionsPerTick") !== FOUNDING_ACTIONS_PER_TICK ||
+        int(p, "intel") !== FOUNDING_INTEL ||
+        nonNeg(p, "inventory") !== 0
+      ) {
+        throw new Error("LINEAGE_FOUNDED invariant violated (starting state must be the genesis norms, nothing beyond them)");
+      }
+      const backend = p.backend;
+      if (!isBackendRef(backend)) throw new Error("LINEAGE_FOUNDED invariant violated (backend)");
+      if (str(p, "authority") !== "AA10") throw new Error("LINEAGE_FOUNDED invariant violated (authority)");
+      next.residents[id] = {
+        alive: true,
+        satiety: FOUNDING_SATIETY,
+        maxSatiety: FOUNDING_MAX_SATIETY,
+        inventory: 0,
+        actionsPerTick: FOUNDING_ACTIONS_PER_TICK,
+        initiative: FOUNDING_INITIATIVE,
+        diedAtTick: null,
+        bornTick: entry.tick,
+        lineage,
+        parents: [],
+        genome: null, // not an AA12 birth: no genome is granted or inferred
+        backend: { providerId: backend.providerId, version: backend.version },
+        instrument: null,
+        position: FOUNDING_POSITION,
+        intel: FOUNDING_INTEL,
+      };
       return next;
     }
     case "JOURNAL_TAIL_RECOVERED": {
