@@ -446,9 +446,9 @@ export function renderResidentViewHtml(
   );
   parts.push(
     `<div class="orders-box">` +
-      `<label for="orders-code">Family code — the relay records orders only from the owner. ` +
+      `<label for="orders-code">Owner code — the relay records orders only from the owner; the shared family code does not authorize orders. ` +
       `It is held only in this field, sent to the relay over HTTPS, and never stored by this page.</label>` +
-      `<input id="orders-code" type="password" autocomplete="off" placeholder="Family code">` +
+      `<input id="orders-code" type="password" autocomplete="off" placeholder="Owner code">` +
       `<textarea id="orders-text" rows="3" placeholder="Your order for ${esc(view.residentId)} — e.g. gather at the market, then eat"></textarea>` +
       `<button id="orders-send" type="button">Send order for tick ${opts.nextTick}</button>` +
       `<div id="orders-status" class="meta"></div>` +
@@ -489,7 +489,7 @@ const ORDERS_ENDPOINT = ${JSON.stringify(ORDERS_ENDPOINT)};
 const ORDERS_SEAT = ${JSON.stringify(view.residentId)};
 const ORDERS_TICK = ${opts.nextTick};
 const COMPOSER = ${JSON.stringify(opts.composer ?? null)};
-// The family code lives only in its password field and in this request's
+// The owner code lives only in its password field and in this request's
 // header: no storage API is touched anywhere in this script, so closing
 // the page forgets it. The relay — never this page — holds the GitHub
 // token, and it answers for itself: recorded, duplicate, or an error.
@@ -500,7 +500,7 @@ async function postOrder(body, status) {
   composed.textContent = JSON.stringify(body, null, 2);
   const code = ordersCode();
   if (!code) {
-    status.textContent = "Enter your family code first — the relay records orders only from the owner, and this page never stores the code.";
+    status.textContent = "Enter your owner code first — the relay records orders only from the owner, and this page never stores the code.";
     return;
   }
   status.textContent = "Sending…";
@@ -517,7 +517,7 @@ async function postOrder(body, status) {
     } else if (res.ok && data && data.status === "duplicate") {
       status.textContent = "Already recorded — an identical entry is already in the orders file, so nothing was appended. To change the order, change the order itself: a correction supersedes; a retry does not.";
     } else if (res.status === 401) {
-      status.textContent = "FAILED — the relay rejected the family code (401). The order has NOT been recorded.";
+      status.textContent = "FAILED — the relay rejected the owner code (401). The order has NOT been recorded.";
     } else if (res.status === 503) {
       status.textContent = "FAILED — the relay is not configured for seat orders yet (503). The order has NOT been recorded.";
     } else {

@@ -1,6 +1,6 @@
 // The gameplay loop (viewer/residentView.ts + the relay contract): the
 // owner composes real engine actions in the resident section, the box
-// authenticates to the relay with the family code held only in the
+// authenticates to the relay with the owner code held only in the
 // page, and the outcomes the page reports come from the journal's own
 // ACTION_ACCEPTED / ACTION_REJECTED entries — never from the relay's
 // answer. The fixture is the founding rehearsal again, extended: at
@@ -169,10 +169,10 @@ describe("the rendered box: code field, composer, honest feedback states", () =>
     expect(section).toContain("Recorded for tick ");
     expect(section).toContain("Recorded is not accepted");
     expect(section).toContain("Already recorded");
-    expect(section).toContain("the relay rejected the family code (401)");
+    expect(section).toContain("the relay rejected the owner code (401)");
     expect(section).toContain("not configured for seat orders yet (503)");
     expect(section).toContain("FAILED — the order did not reach the relay");
-    expect(section).toContain("Enter your family code first");
+    expect(section).toContain("Enter your owner code first");
   });
 
   it("never persists the code: no storage API appears anywhere in the section", () => {
