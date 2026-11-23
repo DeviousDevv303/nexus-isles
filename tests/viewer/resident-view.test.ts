@@ -134,7 +134,14 @@ describe("the rendered page carries the resident section, labelled, beside the a
   it("renders his view, his label, and nothing of the far side of his perception", () => {
     expect(html).toContain('id="resident-view"');
     expect(html).toContain(RESIDENT_LABEL);
-    const section = html.slice(html.indexOf('id="resident-view"'));
+    // His section is the resident-view element itself. (It used to be
+    // the last thing on the page, so a slice to end-of-page was the
+    // section; the section now lives inside the Game surface with the
+    // World and Auditor surfaces after it, so the slice is bounded by
+    // the section's own close tag — the assertion is unchanged: nothing
+    // beyond his perception appears in HIS section.)
+    const start = html.indexOf('id="resident-view"');
+    const section = html.slice(start, html.indexOf("</section>", start));
     expect(section).toContain("Centro Histórico");
     expect(section).toContain("lineage:nunez");
     // industrial-east is outside his observation: its node and its

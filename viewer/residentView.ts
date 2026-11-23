@@ -112,6 +112,61 @@ export interface ResidentView {
   recent: ResidentJournalNote[];
 }
 
+/** One delivered observation, parsed from its journal entry. */
+export interface SeatObservation {
+  tick: number;
+  position: string | null;
+  regions: ResidentObservationRegion[];
+}
+
+/**
+ * Parse an OBSERVATION_DELIVERED entry into the observation it carried
+ * for `residentId`. Returns null for any other entry, and for entries
+ * delivered to a different seat.
+ */
+export function observationFromEntry(entry: JournalEntry, residentId: string): SeatObservation | null {
+  if (entry.type !== "OBSERVATION_DELIVERED" || entry.payload.seat !== residentId) return null;
+  const visible = entry.payload.visible as {
+    position?: unknown;
+    regions?: Record<string, { residents?: unknown; nodes?: unknown }>;
+  };
+  const regions: ResidentObservationRegion[] = [];
+  if (visible && typeof visible.regions === "object" && visible.regions !== null) {
+    for (const region of Object.keys(visible.regions).sort()) {
+      const r = visible.regions[region];
+      regions.push({
+        region,
+        residents: Array.isArray(r?.residents) ? (r.residents as string[]) : [],
+        nodes: (r?.nodes ?? {}) as Record<string, number>,
+      });
+    }
+  }
+  return {
+    tick: entry.tick,
+    position: typeof visible?.position === "string" ? visible.position : null,
+    regions,
+  };
+}
+
+/**
+ * The latest observation delivered to a seat at or before `throughTick`
+ * — the seat's perception as of that tick. Pure scan of the journal,
+ * newest wins; null when nothing had been delivered yet.
+ */
+export function latestSeatObservationAt(
+  entries: readonly JournalEntry[],
+  residentId: string,
+  throughTick: number,
+): SeatObservation | null {
+  let latest: SeatObservation | null = null;
+  for (const e of entries) {
+    if (e.tick > throughTick) continue;
+    const obs = observationFromEntry(e, residentId);
+    if (obs) latest = obs;
+  }
+  return latest;
+}
+
 function concernsResident(entry: JournalEntry, residentId: string): boolean {
   const p = entry.payload;
   return (
@@ -120,6 +175,29 @@ function concernsResident(entry: JournalEntry, residentId: string): boolean {
     p.seat === residentId ||
     p.successor === residentId
   );
+}
+
+/**
+ * The journal entries concerning a seat at or before `throughTick`,
+ * newest first, capped at `limit`. The per-frame form of the resident
+ * view's `recent` list: what had happened to the seat by that tick —
+ * history when the viewer is scrubbed back, the living present only at
+ * the journal head.
+ */
+export function seatJournalNotesAt(
+  entries: readonly JournalEntry[],
+  residentId: string,
+  throughTick: number,
+  limit: number,
+): ResidentJournalNote[] {
+  const notes: ResidentJournalNote[] = [];
+  for (let i = entries.length - 1; i >= 0 && notes.length < limit; i--) {
+    const e = entries[i];
+    if (e.tick > throughTick) continue;
+    if (!concernsResident(e, residentId)) continue;
+    notes.push({ index: e.index, tick: e.tick, type: e.type, actor: e.actor });
+  }
+  return notes;
 }
 
 /**
@@ -133,38 +211,8 @@ export function residentViewFromJournal(
 ): ResidentView {
   const founding = entries.find((e) => e.type === "LINEAGE_FOUNDED" && e.payload.resident === residentId);
   const resident = finalState.residents[residentId];
-  let observation: ResidentView["observation"] = null;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const e = entries[i];
-    if (e.type !== "OBSERVATION_DELIVERED" || e.payload.seat !== residentId) continue;
-    const visible = e.payload.visible as {
-      position?: unknown;
-      regions?: Record<string, { residents?: unknown; nodes?: unknown }>;
-    };
-    const regions: ResidentObservationRegion[] = [];
-    if (visible && typeof visible.regions === "object" && visible.regions !== null) {
-      for (const region of Object.keys(visible.regions).sort()) {
-        const r = visible.regions[region];
-        regions.push({
-          region,
-          residents: Array.isArray(r?.residents) ? (r.residents as string[]) : [],
-          nodes: (r?.nodes ?? {}) as Record<string, number>,
-        });
-      }
-    }
-    observation = {
-      tick: e.tick,
-      position: typeof visible?.position === "string" ? visible.position : null,
-      regions,
-    };
-    break;
-  }
-  const recent: ResidentJournalNote[] = [];
-  for (let i = entries.length - 1; i >= 0 && recent.length < 20; i--) {
-    const e = entries[i];
-    if (!concernsResident(e, residentId)) continue;
-    recent.push({ index: e.index, tick: e.tick, type: e.type, actor: e.actor });
-  }
+  const observation = latestSeatObservationAt(entries, residentId, Number.POSITIVE_INFINITY);
+  const recent = seatJournalNotesAt(entries, residentId, Number.POSITIVE_INFINITY, 20);
   return {
     residentId,
     founded: founding !== undefined,
