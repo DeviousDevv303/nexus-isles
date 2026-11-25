@@ -160,6 +160,20 @@ describe("rendered page: three surfaces", () => {
     expect(html).toContain("Return to the present");
   });
 
+  it("classifies state-bearing graphics in the §5 vocabulary: DERIVED live, STALE in replay, NOT OBSERVED for an undelivered perception", () => {
+    // The mode banner classifies every frame the page can show.
+    expect(html).toContain("DERIVED · committed journal state");
+    expect(html).toContain("STALE · replayed history — not the present");
+    // The World surface's whole-world graphics are DERIVED, never a resident's knowledge.
+    expect(html).toContain("Classification: DERIVED · whole-world committed state");
+    // The scene classifies its own projected frame, live or historical.
+    expect(html).toContain("Classification: DERIVED · committed state.");
+    expect(html).toContain("Classification: STALE · this frame is history, not the present.");
+    // An undelivered perception is labeled, never silently absent.
+    expect(html).toContain("NOT OBSERVED — no observation had been delivered");
+    expect(html).toContain("NOT OBSERVED — no perception: nothing had been delivered");
+  });
+
   it("carries the region scene and the Núñez identity portrait", () => {
     expect(html).toContain('id="game-scene"');
     expect(html).toContain('id="game-events"');
