@@ -403,7 +403,7 @@ export function renderResidentViewHtml(
         );
       }
     } else {
-      parts.push(`<p class="empty">No observation has been delivered to this resident yet.</p>`);
+      parts.push(`<p class="empty">NOT OBSERVED · no observation has been delivered to this resident yet.</p>`);
     }
     parts.push(`<h3>Journal entries concerning ${esc(view.residentId)}</h3>`);
     if (view.recent.length === 0) {

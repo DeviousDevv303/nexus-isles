@@ -336,7 +336,7 @@ ${residentSection}
 </section>
 <section id="surface-world" class="surface" aria-label="World intelligence" hidden>
   <h2>World — the two banks of the Rio Grande</h2>
-  <p class="meta">A schematic map drawn from the journaled map: regions on their own bank, bridges and the river crossing over the Rio Grande, resource nodes with their stock at the tick you are viewing. Read-only — like every surface here, it displays committed state and cannot act on the world. Region positions are a diagram of the map's sides and crossings, not geography.</p>
+  <p class="meta">A schematic map drawn from the journaled map: regions on their own bank, bridges and the river crossing over the Rio Grande, resource nodes with their stock at the tick you are viewing. Read-only — like every surface here, it displays committed state and cannot act on the world. Classification: DERIVED · whole-world committed state — no resident observes all of this; a resident's own knowledge is the OBSERVED perception on the Game surface. Region positions are a diagram of the map's sides and crossings, not geography.</p>
   <div class="world-map-wrap" id="world-map"></div>
   <p class="legend">Markers: black disc with a gold ring = cristian of the Núñez lineage · cyan initial disc = another resident, alive · grey † disc = dead, at their last region, never operational · blue badge on a place = resource node and its stock (amount/capacity) · amber line = bridge · dashed line = trail or river crossing.</p>
   <div class="resident-chips" id="world-chips"></div>
@@ -453,6 +453,7 @@ function renderMode(i, frame) {
     banner.appendChild(el("span",
       "● LIVE — tick " + frame.tick + " of " + data.frames[last].tick +
       " · the living present: this is the world's committed state now, and the seat's latest events are below."));
+    banner.appendChild(el("span", "DERIVED · committed journal state", "ev-chip"));
     document.body.dataset.mode = "live";
   } else {
     banner.className = "mode-banner replay";
@@ -460,6 +461,7 @@ function renderMode(i, frame) {
       "◐ REPLAY — you are observing history at tick " + frame.tick + " of " + data.frames[last].tick +
       ". Nothing on screen is the present. (Orders composed below still target the next live tick, " +
       (data.frames[last].tick + 1) + ".)"));
+    banner.appendChild(el("span", "STALE · replayed history — not the present", "ev-chip"));
     const back = el("button", "Return to the present");
     back.type = "button";
     back.addEventListener("click", () => { scrub.value = last; render(last); });
@@ -527,7 +529,7 @@ function renderGame(frame) {
     hero.appendChild(heroBox);
     scene.appendChild(el("p", "No scene — the resident has not entered the world at this tick.", "empty"));
     surr.appendChild(el("p", "No surroundings — the resident has not entered the world at this tick.", "empty"));
-    perc.appendChild(el("p", "No perception — nothing had been delivered to him by this tick.", "empty"));
+    perc.appendChild(el("p", "NOT OBSERVED — no perception: nothing had been delivered to him by this tick.", "empty"));
     renderEvents(frame, null);
     return;
   }
@@ -597,7 +599,7 @@ function renderGame(frame) {
   pp.appendChild(el("p",
     "Mid-tick intelligence the engine delivered to the resident — a different register from the committed state above.", "meta"));
   if (!obs) {
-    pp.appendChild(el("p", "No observation had been delivered to " + seat.id + " by tick " + frame.tick + ".", "empty"));
+    pp.appendChild(el("p", "NOT OBSERVED — no observation had been delivered to " + seat.id + " by tick " + frame.tick + ".", "empty"));
   } else if (obs.regions.length === 0) {
     pp.appendChild(el("p", "The observation carried no regions.", "empty"));
   } else {
@@ -734,7 +736,10 @@ function renderScene(frame, seat) {
   host.appendChild(head);
   host.appendChild(el("p",
     "Holographic operational display — terrain and markers projected from the committed frame at tick " + frame.tick +
-    ". Walking an exit moves the display, never the resident. This is committed state on a display, not the resident's perception.",
+    ". Walking an exit moves the display, never the resident. This is committed state on a display, not the resident's perception. " +
+    (frame.tick === data.frames[data.frames.length - 1].tick
+      ? "Classification: DERIVED · committed state."
+      : "Classification: STALE · this frame is history, not the present."),
     "scene-note"));
   const wrap = el("div", undefined, "scene-wrap");
   const W = 960, H = 440, horizon = 248;
